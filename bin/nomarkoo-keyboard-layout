@@ -1,0 +1,419 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+state_root=${XDG_STATE_HOME:-$HOME/.local/state}
+state_dir=$state_root/omarchy/settings
+state_file=${NOMARKOO_KEYBOARD_STATE_FILE:-$state_dir/nomarkoo-keyboard-layout.json}
+toggle_dir=$state_root/omarchy/toggles/hypr
+toggle_file=${NOMARKOO_KEYBOARD_TOGGLE_FILE:-$toggle_dir/nomarkoo-keyboard-layout.lua}
+lock_file=$state_dir/nomarkoo-keyboard-layout.lock
+
+usage() {
+  printf '%s\n' \
+    'Usage: nomarkoo-keyboard-layout status' \
+    '       nomarkoo-keyboard-layout available' \
+    '       nomarkoo-keyboard-layout set INDEX' \
+    '       nomarkoo-keyboard-layout add LAYOUT [VARIANT]' \
+    '       nomarkoo-keyboard-layout remove INDEX' \
+    '       nomarkoo-keyboard-layout shortcut XKB_GRP_OPTION' \
+    '       nomarkoo-keyboard-layout snapshot-current' \
+    '       nomarkoo-keyboard-layout current-index' \
+    '       nomarkoo-keyboard-layout migrate-toggle TOGGLE_FILE' \
+    '       nomarkoo-keyboard-layout install-json JSON [ACTIVE_INDEX]' >&2
+  exit 2
+}
+
+die() {
+  printf '%s\n' "$1" >&2
+  exit 1
+}
+
+ensure_dirs() {
+  mkdir -p -- "$state_dir" "$toggle_dir"
+}
+
+validate_shape() {
+  jq -e '
+    .version == 1 and
+    (.layouts | type == "array" and length > 0) and
+    (all(.layouts[];
+      (.layout | type == "string" and test("^[A-Za-z0-9_+-]+$")) and
+      (.variant | type == "string" and test("^[A-Za-z0-9_+-]*$")))) and
+    ([.layouts[] | [.layout, .variant]] | unique | length) == (.layouts | length) and
+    (.switchOption | type == "string" and test("^grp:[A-Za-z0-9_+-]+$")) and
+    (.nonGroupOptions | type == "array") and
+    (all(.nonGroupOptions[]; type == "string" and test("^[A-Za-z0-9_:+-]+$") and (startswith("grp:") | not)))
+  ' >/dev/null 2>&1 <<<"$1"
+}
+
+layout_csv() { jq -r '[.layouts[].layout] | join(",")' <<<"$1"; }
+variant_csv() { jq -r '[.layouts[].variant] | join(",")' <<<"$1"; }
+options_csv() { jq -r '[.nonGroupOptions[], .switchOption] | map(select(length > 0)) | join(",")' <<<"$1"; }
+
+hypr_option_string() {
+  local option=$1 payload
+  payload=$(hyprctl -j getoption "$option" 2>/dev/null) || return 1
+  jq -er '
+    if (.str? | type) == "string" then .str
+    elif (.string? | type) == "string" then .string
+    else empty
+    end
+  ' <<<"$payload"
+}
+
+snapshot_current() {
+  command -v hyprctl >/dev/null 2>&1 \
+    || die 'No saved keyboard settings exist and hyprctl is unavailable. Run the installer inside a live Omarchy Quattro session.'
+  hyprctl -j devices >/dev/null 2>&1 \
+    || die 'No saved keyboard settings exist and no live Hyprland session is reachable. Run the installer from your Omarchy Quattro desktop.'
+
+  local layouts variants options payload
+  layouts=$(hypr_option_string input:kb_layout) \
+    || die 'The current Hyprland keyboard layouts could not be read; nothing was changed.'
+  variants=$(hypr_option_string input:kb_variant 2>/dev/null || printf '')
+  options=$(hypr_option_string input:kb_options 2>/dev/null || printf '')
+  [[ -n $layouts ]] || die 'Hyprland did not report an active keyboard layout; nothing was changed.'
+
+  payload=$(jq -cn \
+    --arg layouts "$layouts" \
+    --arg variants "$variants" \
+    --arg options "$options" '
+      ($layouts | split(",")) as $layoutList
+      | ($variants | split(",")) as $variantList
+      | ($options | split(",") | map(select(length > 0))) as $optionList
+      | {
+          version: 1,
+          layouts: [$layoutList | to_entries[] | {
+            layout: .value,
+            variant: ($variantList[.key] // "")
+          }],
+          switchOption: ([$optionList[] | select(startswith("grp:"))][-1] // "grp:alt_shift_toggle"),
+          nonGroupOptions: [$optionList[] | select(startswith("grp:") | not)]
+        }
+    ')
+  validate_candidate "$payload"
+  jq . <<<"$payload"
+}
+
+compile_layout() {
+  local payload=$1
+  xkbcli compile-keymap \
+    --layout "$(layout_csv "$payload")" \
+    --variant "$(variant_csv "$payload")" \
+    --options "$(options_csv "$payload")" >/dev/null 2>&1
+}
+
+is_latin() {
+  local layout=$1 variant=${2:-} command letters
+  command=(xkbcli compile-keymap --layout "$layout")
+  [[ -z $variant ]] || command+=(--variant "$variant")
+  letters=$("${command[@]}" 2>/dev/null \
+    | sed -nE 's/.*\{[[:space:]]*\[[[:space:]]*([a-z])[[:space:]]*,.*/\1/p' \
+    | sort -u \
+    | tr -d '\n')
+  [[ ${#letters} -eq 26 ]]
+}
+
+validate_candidate() {
+  local payload=$1 first_layout first_variant shortcut catalog option
+  validate_shape "$payload" || die 'Invalid keyboard-layout state; nothing was changed.'
+  shortcut=$(jq -r '.switchOption' <<<"$payload")
+  if [[ $shortcut =~ _switch(_|$) ]] \
+    || [[ $shortcut != grp:toggle && ! $shortcut =~ _toggle(_|$) && ! $shortcut =~ _select$ ]]; then
+    die 'Choose a supported XKB layout-switching shortcut; nothing was changed.'
+  fi
+  catalog=$(xkbcli list --load-exotic 2>/dev/null) || die 'The installed XKB catalog could not be read; nothing was changed.'
+  while IFS= read -r option; do
+    grep -Fqx "  - name: '$option'" <<<"$catalog" \
+      || die "XKB does not provide option '$option'; nothing was changed."
+  done < <(jq -r '.nonGroupOptions[], .switchOption' <<<"$payload")
+  compile_layout "$payload" || die 'XKB rejected that layout, variant, or shortcut; nothing was changed.'
+  first_layout=$(jq -r '.layouts[0].layout' <<<"$payload")
+  first_variant=$(jq -r '.layouts[0].variant' <<<"$payload")
+  is_latin "$first_layout" "$first_variant" || die "Keep a Latin layout first so Quattro's SUPER+letter shortcuts continue to work."
+}
+
+render_toggle() {
+  local payload=$1 target=$2
+  printf '%s\n' \
+    '-- Generated by nomarkoo.keyboard-layout. Use the bar panel to edit this file.' \
+    'hl.config({' \
+    '  input = {' \
+    "    kb_layout = \"$(layout_csv "$payload")\"," \
+    "    kb_variant = \"$(variant_csv "$payload")\"," \
+    "    kb_options = \"$(options_csv "$payload")\"," \
+    '  },' \
+    '})' >"$target"
+  chmod 0644 "$target"
+}
+
+typed_keyboard_names() {
+  hyprctl -j devices 2>/dev/null | jq -r '
+    .keyboards[]?.name
+    | select(test("^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)") | not)
+  '
+}
+
+all_keyboard_names() {
+  hyprctl -j devices 2>/dev/null | jq -r '.keyboards[]?.name'
+}
+
+active_index() {
+  local index
+  index=$(hyprctl -j devices 2>/dev/null | jq -r '
+    [.keyboards[]?
+      | select(.name | test("^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)") | not)
+      | (.active_layout_index // 0)]
+    | max // 0
+  ' 2>/dev/null || true)
+  [[ $index =~ ^[0-9]+$ ]] && printf '%s\n' "$index" || printf '0\n'
+}
+
+switch_all() {
+  local index=$1 keyboard
+  command -v hyprctl >/dev/null 2>&1 || return 0
+  while IFS= read -r keyboard; do
+    [[ -z $keyboard ]] || hyprctl switchxkblayout "$keyboard" "$index" >/dev/null 2>&1 || true
+  done < <(typed_keyboard_names || true)
+}
+
+switch_all_keyboards_checked() {
+  local index=$1 keyboard
+  local -a keyboards=()
+  command -v hyprctl >/dev/null 2>&1 || return 1
+  mapfile -t keyboards < <(all_keyboard_names)
+  ((${#keyboards[@]} > 0)) || return 1
+  for keyboard in "${keyboards[@]}"; do
+    hyprctl switchxkblayout "$keyboard" "$index" >/dev/null 2>&1 || return 1
+  done
+}
+
+disable_autoreload_value() {
+  hyprctl -j getoption misc:disable_autoreload 2>/dev/null \
+    | jq -er '.bool | if . then "true" else "false" end' 2>/dev/null
+}
+
+set_disable_autoreload() {
+  local value=$1
+  hyprctl eval "hl.config({ misc = { disable_autoreload = $value } })" >/dev/null 2>&1
+}
+
+apply_live_config() {
+  local payload=$1 layouts variants options
+  layouts=$(layout_csv "$payload")
+  variants=$(variant_csv "$payload")
+  options=$(options_csv "$payload")
+  hyprctl eval "hl.config({ input = { kb_layout = \"$layouts\", kb_variant = \"$variants\", kb_options = \"$options\" } })" >/dev/null 2>&1
+}
+
+status_json() {
+  local payload latins='[]' layout variant latin
+  payload=$(jq -c . "$state_file")
+  while IFS=$'\t' read -r layout variant; do
+    if is_latin "$layout" "$variant"; then latin=true; else latin=false; fi
+    latins=$(jq -c --argjson value "$latin" '. + [$value]' <<<"$latins")
+  done < <(jq -r '.layouts[] | [.layout, .variant] | @tsv' <<<"$payload")
+  jq -c --argjson latins "$latins" --argjson activeIndex "$(active_index)" '
+    .layouts |= to_entries | .layouts |= map(.value + {latin: $latins[.key]})
+    | .activeIndex = $activeIndex
+  ' <<<"$payload"
+}
+
+rollback_files() {
+  local old_state=$1 old_toggle=$2 had_state=$3 had_toggle=$4
+  if [[ $had_state == true ]]; then cp -p -- "$old_state" "$state_file"; else rm -f -- "$state_file"; fi
+  if [[ $had_toggle == true ]]; then cp -p -- "$old_toggle" "$toggle_file"; else rm -f -- "$toggle_file"; fi
+}
+
+commit_candidate() {
+  local payload=$1 requested_index=${2:-0} pre_apply_index=${3:-} rollback_index=${4:-0}
+  local temp_state temp_toggle old_state old_toggle old_payload=""
+  local had_state=false had_toggle=false live=false reload_guarded=false reload_was_disabled=""
+
+  restore_reload_guard() {
+    if [[ $live == true && $reload_guarded == true ]]; then
+      set_disable_autoreload "$reload_was_disabled" || true
+      reload_guarded=false
+    fi
+  }
+
+  validate_candidate "$payload"
+  ensure_dirs
+  temp_state=$(mktemp --tmpdir="$state_dir" .nomarkoo-keyboard-state.XXXXXX)
+  temp_toggle=$(mktemp --tmpdir="$toggle_dir" .nomarkoo-keyboard-toggle.XXXXXX)
+  old_state=$(mktemp --tmpdir="$state_dir" .nomarkoo-keyboard-old-state.XXXXXX)
+  old_toggle=$(mktemp --tmpdir="$toggle_dir" .nomarkoo-keyboard-old-toggle.XXXXXX)
+
+  jq . <<<"$payload" >"$temp_state"
+  chmod 0644 "$temp_state"
+  render_toggle "$payload" "$temp_toggle"
+
+  # Installing an already active revision must be a true no-op. Reapplying an
+  # unchanged XKB keymap still makes Hyprland replace keymap file descriptors,
+  # which is needless work and has exposed compositor bugs on live sessions.
+  if [[ -f $state_file && -f $toggle_file ]] \
+    && [[ "$(jq -S -c . "$state_file")" == "$(jq -S -c . <<<"$payload")" ]] \
+    && cmp -s -- "$temp_toggle" "$toggle_file"; then
+    rm -f -- "$temp_state" "$temp_toggle" "$old_state" "$old_toggle"
+    status_json
+    return 0
+  fi
+
+  if [[ -f $state_file ]]; then
+    cp -p -- "$state_file" "$old_state"
+    old_payload=$(jq -c . "$old_state")
+    had_state=true
+  fi
+  if [[ -f $toggle_file ]]; then cp -p -- "$toggle_file" "$old_toggle"; had_toggle=true; fi
+  if command -v hyprctl >/dev/null 2>&1 && hyprctl -j devices >/dev/null 2>&1; then live=true; fi
+
+  if [[ $live == true ]]; then
+    reload_was_disabled=$(disable_autoreload_value) \
+      || die 'Hyprland autoreload state could not be read; nothing was changed.'
+    set_disable_autoreload true \
+      || die 'Hyprland autoreload could not be paused safely; nothing was changed.'
+    reload_guarded=true
+    trap restore_reload_guard EXIT
+    trap 'restore_reload_guard; exit 129' HUP
+    trap 'restore_reload_guard; exit 130' INT
+    trap 'restore_reload_guard; exit 143' TERM
+
+    # Shrinking kb_layout changes indices. Move every Hyprland keyboard,
+    # including virtual keyboards and button devices, to an old index that also
+    # exists in the candidate before replacing the keymap. Leaving even an
+    # auxiliary device on a removed index can make Hyprland marshal a vanished
+    # keymap.
+    if [[ -n $pre_apply_index ]] && ! switch_all_keyboards_checked "$pre_apply_index"; then
+      restore_reload_guard
+      trap - EXIT HUP INT TERM
+      rm -f -- "$temp_state" "$temp_toggle" "$old_state" "$old_toggle"
+      die 'The keyboards could not be moved to a safe layout; nothing was changed.'
+    fi
+  fi
+
+  mv -f -- "$temp_state" "$state_file"
+  mv -f -- "$temp_toggle" "$toggle_file"
+
+  if [[ $live == true ]]; then
+    if ! apply_live_config "$payload"; then
+      rollback_files "$old_state" "$old_toggle" "$had_state" "$had_toggle"
+      [[ -z $old_payload ]] || apply_live_config "$old_payload" || true
+      [[ -z $pre_apply_index ]] || switch_all "$rollback_index"
+      restore_reload_guard
+      trap - EXIT HUP INT TERM
+      rm -f -- "$temp_state" "$temp_toggle" "$old_state" "$old_toggle"
+      die 'Hyprland rejected the keyboard configuration; the previous settings were restored without reloading the session.'
+    fi
+    switch_all "$requested_index"
+    restore_reload_guard
+    trap - EXIT HUP INT TERM
+  fi
+
+  rm -f -- "$temp_state" "$temp_toggle" "$old_state" "$old_toggle"
+  status_json
+}
+
+ensure_state() {
+  ensure_dirs
+  [[ -f $state_file ]] && return 0
+  local initial
+  initial=$(snapshot_current)
+  commit_candidate "$initial" "$(active_index)" >/dev/null
+}
+
+action=${1:-status}
+case "$action" in
+  current-index)
+    active_index
+    ;;
+  snapshot-current)
+    snapshot_current
+    ;;
+  migrate-toggle)
+    [[ -f ${2:-} ]] || usage
+    layouts=$(sed -nE 's/.*kb_layout = "([^"]*)".*/\1/p' "$2" | head -n1)
+    variants=$(sed -nE 's/.*kb_variant = "([^"]*)".*/\1/p' "$2" | head -n1)
+    options=$(sed -nE 's/.*kb_options = "([^"]*)".*/\1/p' "$2" | head -n1)
+    payload=$(jq -cn --arg layouts "$layouts" --arg variants "$variants" --arg options "$options" '
+      ($layouts | split(",")) as $layoutList
+      | ($variants | split(",")) as $variantList
+      | ($options | split(",") | map(select(length > 0))) as $optionList
+      | {
+          version: 1,
+          layouts: [$layoutList | to_entries[] | {layout: .value, variant: ($variantList[.key] // "")}],
+          switchOption: ([$optionList[] | select(startswith("grp:"))][-1] // "grp:alt_shift_toggle"),
+          nonGroupOptions: [$optionList[] | select(startswith("grp:") | not)]
+        }
+    ')
+    validate_candidate "$payload"
+    jq . <<<"$payload"
+    ;;
+  available)
+    xkbcli list --load-exotic
+    ;;
+  status)
+    ensure_state
+    status_json
+    ;;
+  install-json)
+    [[ -n ${2:-} ]] || usage
+    ensure_dirs
+    exec 9>"$lock_file"
+    flock -x 9
+    commit_candidate "$2" "${3:-0}"
+    ;;
+  set)
+    [[ ${2:-} =~ ^[0-9]+$ ]] || usage
+    index=$2
+    ensure_state
+    count=$(jq '.layouts | length' "$state_file")
+    (( index < count )) || die 'That keyboard language is no longer available.'
+    switch_all "$index"
+    status_json
+    ;;
+  add)
+    layout=${2:-}; variant=${3:-}
+    [[ $layout =~ ^[A-Za-z0-9_+-]+$ && $variant =~ ^[A-Za-z0-9_+-]*$ ]] || usage
+    ensure_state
+    exec 9>"$lock_file"
+    flock -x 9
+    payload=$(jq -c --arg layout "$layout" --arg variant "$variant" '
+      if any(.layouts[]; .layout == $layout and .variant == $variant)
+      then error("duplicate")
+      else .layouts += [{layout: $layout, variant: $variant}]
+      end
+    ' "$state_file" 2>/dev/null) || die 'That language and variant is already available.'
+    commit_candidate "$payload" "$(jq '.layouts | length' "$state_file")"
+    ;;
+  remove)
+    [[ ${2:-} =~ ^[0-9]+$ ]] || usage
+    index=$2
+    ensure_state
+    exec 9>"$lock_file"
+    flock -x 9
+    count=$(jq '.layouts | length' "$state_file")
+    (( count > 1 )) || die 'Keep at least one keyboard language.'
+    (( index < count )) || die 'That keyboard language is no longer available.'
+    current=$(active_index)
+    if (( index < current )); then next=$((current - 1)); elif (( index == current )); then next=$index; else next=$current; fi
+    (( next < count - 1 )) || next=$((count - 2))
+    # Index zero normally survives. If zero itself is removed, index one is the
+    # first guaranteed survivor and becomes index zero in the candidate.
+    if (( index == 0 )); then safe_old_index=1; else safe_old_index=0; fi
+    payload=$(jq -c --argjson index "$index" '.layouts |= del(.[$index])' "$state_file")
+    commit_candidate "$payload" "$next" "$safe_old_index" "$current"
+    ;;
+  shortcut)
+    shortcut=${2:-}
+    [[ $shortcut =~ ^grp:[A-Za-z0-9_+-]+$ ]] || usage
+    ensure_state
+    exec 9>"$lock_file"
+    flock -x 9
+    payload=$(jq -c --arg shortcut "$shortcut" '.switchOption = $shortcut' "$state_file")
+    commit_candidate "$payload" "$(active_index)"
+    ;;
+  *)
+    usage
+    ;;
+esac

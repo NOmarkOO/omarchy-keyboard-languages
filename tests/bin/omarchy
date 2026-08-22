@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+log_file=${NOMARKOO_TEST_OMARCHY_LOG:-}
+[[ -z $log_file ]] || printf '%s\n' "$*" >>"$log_file"
+
+if [[ ${1:-} == plugin && ${2:-} == validate && -n ${3:-} ]]; then
+  exec omarchy-plugin-validate "$3"
+fi
+
+if [[ ${1:-} == restart && ${2:-} == shell ]]; then
+  [[ ${NOMARKOO_TEST_RESTART_FAIL:-0} != 1 ]]
+  exit
+fi
+
+printf 'unsupported fake omarchy command: %s\n' "$*" >&2
+exit 2

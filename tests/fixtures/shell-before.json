@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "bar": {
+    "position": "top",
+    "customSetting": "preserve-me",
+    "layout": {
+      "left": [
+        {
+          "id": "omarchy.menu",
+          "untouched": true
+        }
+      ],
+      "center": [
+        {
+          "id": "omarchy.clock",
+          "format": "HH:mm"
+        },
+        {
+          "id": "omarchy.keyboard-layout",
+          "old": "remove-me"
+        },
+        {
+          "id": "omarchy.weather"
+        }
+      ],
+      "right": [
+        {
+          "id": "omarchy.tray"
+        },
+        {
+          "id": "omarchy.network"
+        }
+      ]
+    }
+  },
+  "idle": {
+    "lock": 777
+  },
+  "plugins": []
+}
+

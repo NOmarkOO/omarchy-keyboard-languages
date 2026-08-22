@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest a focused keyboard-language improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+      description: Describe the workflow and why current behavior is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: quattro
+    attributes:
+      label: Related Quattro pattern
+      description: Link or describe a first-party panel that behaves similarly, if one exists.
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Compatibility
+      options:
+        - label: This can work without a full Hyprland reload.
+          required: true

@@ -1,0 +1,7 @@
+*.bak
+*.bak.*
+*.log
+.cache/
+.tmp/
+node_modules/
+tests/tmp/

@@ -1,0 +1,32 @@
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 15
+
+    steps:
+      - name: Install test dependencies
+        run: pacman -Syu --noconfirm git jq libxkbcommon nodejs qt5-declarative ripgrep
+
+      - uses: actions/checkout@v7
+
+      - name: Fetch the current Quattro interface
+        run: git clone --depth 1 --branch quattro https://github.com/basecamp/omarchy.git /tmp/omarchy
+
+      - name: Run checks
+        env:
+          OMARCHY_PATH: /tmp/omarchy
+        run: |
+          export PATH="/tmp/omarchy/bin:$PATH"
+          ./test.sh

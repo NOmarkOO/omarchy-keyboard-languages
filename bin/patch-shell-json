@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+[[ $# -eq 2 ]] || {
+  printf 'Usage: patch-shell-json SHELL_JSON OUTPUT_JSON\n' >&2
+  exit 2
+}
+
+shell_file=$1
+output_file=$2
+
+jq '
+  def entry_id:
+    if type == "object" then (.id // "" | tostring) else tostring end;
+  {id: "nomarkoo.keyboard-layout"} as $widget
+  | .bar.layout |= with_entries(
+      .value |= map(select((entry_id == "omarchy.keyboard-layout" or entry_id == "nomarkoo.keyboard-layout") | not))
+    )
+  | .bar.layout.right |= (
+      (map(entry_id) | index("omarchy.tray")) as $tray
+      | if $tray == null then [$widget] + .
+        else .[0:$tray] + [$widget] + .[$tray:]
+        end
+    )
+' "$shell_file" >"$output_file"
+
+jq -e . "$output_file" >/dev/null
+

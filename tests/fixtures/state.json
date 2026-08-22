@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "layouts": [
+    {
+      "layout": "us",
+      "variant": ""
+    },
+    {
+      "layout": "ru",
+      "variant": ""
+    }
+  ],
+  "switchOption": "grp:alt_shift_toggle",
+  "nonGroupOptions": [
+    "compose:caps"
+  ]
+}

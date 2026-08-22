@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "nomarkoo.keyboard-layout",
+  "name": "Keyboard languages",
+  "version": "1.0.0",
+  "author": "NOmarkOO",
+  "description": "Quattro-native keyboard language indicator and manager",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "KeyboardLayout.qml"
+  },
+  "barWidget": {
+    "displayName": "Keyboard languages",
+    "description": "Current language, layouts and switching shortcut",
+    "category": "Compositor",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

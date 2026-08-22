@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+mode=${NOMARKOO_TEST_HYPR_MODE:-offline}
+log_file=${NOMARKOO_TEST_HYPR_LOG:-}
+[[ -z $log_file ]] || printf '%s\n' "$*" >>"$log_file"
+
+if [[ ${1:-} == "-j" && ${2:-} == "devices" ]]; then
+  [[ $mode == offline ]] && exit 1
+  jq -cn --argjson index "${NOMARKOO_TEST_ACTIVE_INDEX:-0}" \
+    '{keyboards:[
+      {name:"test-keyboard",active_keymap:"English (US)",active_layout_index:$index},
+      {name:"power-button",active_keymap:"English (US)",active_layout_index:$index}
+    ]}'
+  exit 0
+fi
+
+if [[ ${1:-} == "-j" && ${2:-} == "getoption" && ${3:-} == "misc:disable_autoreload" ]]; then
+  printf '%s\n' '{"option":"misc:disable_autoreload","bool":false,"set":false}'
+  exit 0
+fi
+
+if [[ ${1:-} == "-j" && ${2:-} == "getoption" && ${3:-} == "input:kb_layout" ]]; then
+  [[ $mode == offline ]] && exit 1
+  jq -cn --arg value "${NOMARKOO_TEST_LAYOUTS:-us,ru}" '{option:"input:kb_layout",str:$value,set:true}'
+  exit 0
+fi
+
+if [[ ${1:-} == "-j" && ${2:-} == "getoption" && ${3:-} == "input:kb_variant" ]]; then
+  [[ $mode == offline ]] && exit 1
+  jq -cn --arg value "${NOMARKOO_TEST_VARIANTS:-,phonetic}" '{option:"input:kb_variant",str:$value,set:true}'
+  exit 0
+fi
+
+if [[ ${1:-} == "-j" && ${2:-} == "getoption" && ${3:-} == "input:kb_options" ]]; then
+  [[ $mode == offline ]] && exit 1
+  jq -cn --arg value "${NOMARKOO_TEST_OPTIONS:-compose:caps,grp:ctrl_shift_toggle}" '{option:"input:kb_options",str:$value,set:true}'
+  exit 0
+fi
+
+if [[ ${1:-} == "eval" ]]; then
+  if [[ $mode == reject && ${2:-} == *'input = '* && ${2:-} == *'grp:alt_shift_toggle'* ]]; then
+    exit 1
+  fi
+  if [[ $mode == reject-shrink && ${2:-} == *'input = '* && ${2:-} == *'kb_layout = "us,de"'* ]]; then
+    exit 1
+  fi
+  exit 0
+fi
+
+if [[ ${1:-} == "switchxkblayout" ]]; then
+  exit 0
+fi
+
+exit 1

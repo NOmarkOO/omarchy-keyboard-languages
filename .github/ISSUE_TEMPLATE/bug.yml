@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible plugin failure
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Never include access tokens or private configuration values.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      placeholder: v1.0.0 or commit hash
+    validations:
+      required: true
+  - type: input
+    id: omarchy
+    attributes:
+      label: Omarchy and Hyprland versions
+      description: Run `omarchy version` and `hyprctl version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: bar-position
+    attributes:
+      label: Bar position
+      options: [Top, Bottom, Left, Right]
+    validations:
+      required: true
+  - type: textarea
+    id: layouts
+    attributes:
+      label: Layouts and shortcut
+      description: List XKB layout/variant names and the group option; redact anything unrelated.
+      placeholder: us (default), de (nodeadkeys); grp:alt_shift_toggle
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Right-click the language label
+        2. Choose …
+        3. Observe …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Include only the smallest relevant excerpt.
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I confirmed this report contains no token, password, private key, or unrelated personal configuration.
+          required: true
