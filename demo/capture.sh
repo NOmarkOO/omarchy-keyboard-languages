@@ -91,3 +91,17 @@ capture_view 'Matte Black' showMain matte-black-manager.png 380
 capture_view 'Catppuccin' showAdd catppuccin-add-language.png 360
 capture_view 'Flexoki Light' showShortcut flexoki-light-shortcut.png 310
 capture_view 'Gruvbox' showRemoval gruvbox-remove-confirmation.png 380
+
+preview_montage="$capture_root/preview-montage.png"
+magick montage \
+  "$output_dir/matte-black-manager.png" \
+  "$output_dir/catppuccin-add-language.png" \
+  "$output_dir/flexoki-light-shortcut.png" \
+  "$output_dir/gruvbox-remove-confirmation.png" \
+  -tile 2x2 -geometry '520x380+20+20' -background '#09090b' \
+  "$preview_montage"
+magick "$preview_montage" \
+  -gravity center -background '#09090b' -extent 1600x900 \
+  -strip -define png:compression-level=9 \
+  "$repo_root/preview.png"
+printf 'Created %s\n' "$repo_root/preview.png"

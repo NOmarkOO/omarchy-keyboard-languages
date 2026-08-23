@@ -2,9 +2,10 @@
   "schemaVersion": 1,
   "id": "nomarkoo.keyboard-layout",
   "name": "Keyboard languages",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "NOmarkOO",
-  "description": "Quattro-native keyboard language indicator and manager",
+  "description": "Switch and manage keyboard languages directly from the Omarchy bar. Add layouts and variants, remove them safely, and change the shortcut in a theme-aware Quattro panel.",
+  "license": "MIT",
   "kinds": [
     "bar-widget"
   ],
@@ -13,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Keyboard languages",
-    "description": "Current language, layouts and switching shortcut",
+    "description": "Switch layouts, manage languages and variants, and choose the shortcut",
     "category": "Compositor",
     "allowMultiple": false,
     "defaultSection": "right"

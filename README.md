@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icon.svg" width="104" height="104" alt="Keyboard Languages icon">
+</p>
+
 # Keyboard Languages for Omarchy
 
 [![Release](https://img.shields.io/github/v/release/NOmarkOO/omarchy-keyboard-languages?display_name=tag&sort=semver)](https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/latest)
@@ -6,7 +10,7 @@
 
 A two-letter keyboard-language indicator and complete XKB layout manager for the Omarchy Quattro bar.
 
-![Keyboard Languages open in the Matte Black theme](docs/screenshots/matte-black-manager.png)
+![Keyboard Languages across four Omarchy Quattro themes](preview.png)
 
 Left-click the bar label to switch language. Right-click it to manage layouts, add variants, remove layouts safely, or change the switching shortcut.
 

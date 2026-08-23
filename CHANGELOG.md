@@ -2,6 +2,17 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-08-23
+
+### Added
+
+- Added a repository-root Marketplace preview assembled from four real Quattro theme captures.
+- Added reusable SVG and PNG project icons.
+
+### Changed
+
+- Rewrote the manifest description around user-visible actions and declared the MIT license in plugin metadata.
+
 ## [1.0.1] - 2026-08-23
 
 ### Security
@@ -24,5 +35,6 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - One-command installer with live-state import and copied-plugin migration.
 - Recoverable uninstaller, automated integration tests, CI, and themed documentation.
 
+[1.0.2]: https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/tag/v1.0.2
 [1.0.1]: https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/tag/v1.0.1
 [1.0.0]: https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/tag/v1.0.0
