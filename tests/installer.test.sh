@@ -13,7 +13,7 @@ export NOMARKOO_TEST_OMARCHY_LOG="$test_root/omarchy.log"
 repository_url=https://github.com/NOmarkOO/omarchy-keyboard-languages.git
 fixture_remote="$test_root/fixture-remote"
 mkdir -p -- "$fixture_remote"
-cp -a -- "$repo_root/." "$fixture_remote/"
+cp -R -- "$repo_root/." "$fixture_remote/"
 rm -rf -- "$fixture_remote/.git"
 git -C "$fixture_remote" init -q
 git -C "$fixture_remote" config user.name 'Installer tests'
