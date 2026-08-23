@@ -57,6 +57,23 @@ fi
 rg -q -- '--commit' "$repo_root/install.sh"
 rg -q 'checkout --quiet --detach' "$repo_root/install.sh"
 
+mapfile -t documented_url_commits < <(
+  rg -o 'raw\.githubusercontent\.com/NOmarkOO/omarchy-keyboard-languages/[0-9a-f]{40}/install\.sh' \
+    "$repo_root/README.md" | sed -E 's#^.*/([0-9a-f]{40})/install\.sh$#\1#'
+)
+mapfile -t documented_arg_commits < <(
+  rg -o -- '--commit [0-9a-f]{40}' "$repo_root/README.md" | awk '{print $2}'
+)
+[[ ${#documented_url_commits[@]} -gt 0 ]]
+[[ ${#documented_url_commits[@]} == ${#documented_arg_commits[@]} ]]
+for index in "${!documented_url_commits[@]}"; do
+  [[ ${documented_url_commits[$index]} == "${documented_arg_commits[$index]}" ]]
+done
+if rg -q 'FULL_40_CHARACTER_RELEASE_COMMIT' "$repo_root/README.md"; then
+  printf 'Release documentation still contains an unresolved commit placeholder.\n' >&2
+  exit 1
+fi
+
 "$repo_root/tests/helper.test.sh"
 "$repo_root/tests/installer.test.sh"
 

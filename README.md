@@ -15,14 +15,21 @@ Left-click the bar label to switch language. Right-click it to manage layouts, a
 
 ## Install
 
-Open the [latest release](https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/latest) and run its exact-SHA install command from a terminal inside your Omarchy desktop session. Release commands pin both the downloaded installer and installed plugin to the same immutable 40-character commit.
+Run this exact-SHA command from a terminal inside your Omarchy desktop session:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NOmarkOO/omarchy-keyboard-languages/8d069859f40b6ec15db73b5b9397dca8f9d19614/install.sh |
+  bash -s -- --commit 8d069859f40b6ec15db73b5b9397dca8f9d19614
+```
+
+The downloaded installer and installed plugin are both pinned to the same immutable v1.0.1 commit.
 
 The installer imports your current layouts, variants, group shortcut, and other XKB options. It replaces the stock keyboard indicator, places itself immediately before the tray, and restarts only `omarchy-shell`. It never reloads Hyprland.
 
 Prefer to inspect scripts before running them?
 
 ```bash
-commit=<FULL_40_CHARACTER_RELEASE_COMMIT>
+commit=8d069859f40b6ec15db73b5b9397dca8f9d19614
 git clone --no-checkout https://github.com/NOmarkOO/omarchy-keyboard-languages.git
 cd omarchy-keyboard-languages
 git checkout --detach "$commit"
@@ -69,7 +76,14 @@ These dependencies are present on a standard Quattro system. The first install d
 
 ## Update
 
-Use the exact-SHA command from the newest [GitHub release](https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/latest). It updates the existing checkout only after fetching and verifying that reviewed commit. Local edits inside the installed plugin are never overwritten.
+Use the exact-SHA command from the newest [GitHub release](https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/latest). For v1.0.1, rerun:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NOmarkOO/omarchy-keyboard-languages/8d069859f40b6ec15db73b5b9397dca8f9d19614/install.sh |
+  bash -s -- --commit 8d069859f40b6ec15db73b5b9397dca8f9d19614
+```
+
+It updates the existing checkout only after fetching and verifying that reviewed commit. Local edits inside the installed plugin are never overwritten.
 
 Omarchy's native plugin updater follows mutable upstream `HEAD`; that is useful for testing current development but is not bound to the Marketplace-reviewed release snapshot.
 
