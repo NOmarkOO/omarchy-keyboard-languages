@@ -24,18 +24,18 @@ Left-click the bar label to switch language. Right-click it to manage layouts, a
 Run this exact-SHA command from a terminal inside your Omarchy desktop session:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/NOmarkOO/omarchy-keyboard-languages/8d069859f40b6ec15db73b5b9397dca8f9d19614/install.sh |
-  bash -s -- --commit 8d069859f40b6ec15db73b5b9397dca8f9d19614
+curl -fsSL https://raw.githubusercontent.com/NOmarkOO/omarchy-keyboard-languages/4d80b765f742c0b9199faf6733df0ab4748c2fb9/install.sh |
+  bash -s -- --commit 4d80b765f742c0b9199faf6733df0ab4748c2fb9
 ```
 
-The downloaded installer and installed plugin are both pinned to the same immutable v1.0.1 commit.
+The downloaded installer and installed plugin are both pinned to the same immutable v1.0.2 commit.
 
 The installer imports your current layouts, variants, group shortcut, and other XKB options. It replaces the stock keyboard indicator, places itself immediately before the tray, and restarts only `omarchy-shell`. It never reloads Hyprland.
 
 Prefer to inspect scripts before running them?
 
 ```bash
-commit=8d069859f40b6ec15db73b5b9397dca8f9d19614
+commit=4d80b765f742c0b9199faf6733df0ab4748c2fb9
 git clone --no-checkout https://github.com/NOmarkOO/omarchy-keyboard-languages.git
 cd omarchy-keyboard-languages
 git checkout --detach "$commit"
@@ -82,11 +82,11 @@ These dependencies are present on a standard Quattro system. The first install d
 
 ## Update
 
-Use the exact-SHA command from the newest [GitHub release](https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/latest). For v1.0.1, rerun:
+Use the exact-SHA command from the newest [GitHub release](https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/latest). For v1.0.2, rerun:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/NOmarkOO/omarchy-keyboard-languages/8d069859f40b6ec15db73b5b9397dca8f9d19614/install.sh |
-  bash -s -- --commit 8d069859f40b6ec15db73b5b9397dca8f9d19614
+curl -fsSL https://raw.githubusercontent.com/NOmarkOO/omarchy-keyboard-languages/4d80b765f742c0b9199faf6733df0ab4748c2fb9/install.sh |
+  bash -s -- --commit 4d80b765f742c0b9199faf6733df0ab4748c2fb9
 ```
 
 It updates the existing checkout only after fetching and verifying that reviewed commit. Local edits inside the installed plugin are never overwritten.
