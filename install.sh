@@ -158,8 +158,9 @@ else
 fi
 
 script_dir=""
-if [[ ${BASH_SOURCE[0]:-} != /dev/fd/* ]]; then
-  candidate_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
+script_source=${BASH_SOURCE[0]:-}
+if [[ -n $script_source && $script_source != /dev/fd/* && $script_source != /proc/self/fd/* ]]; then
+  candidate_dir=$(cd -- "$(dirname -- "$script_source")" 2>/dev/null && pwd || true)
   if [[ -n $candidate_dir ]] && is_this_checkout "$candidate_dir"; then
     script_dir=$candidate_dir
   fi

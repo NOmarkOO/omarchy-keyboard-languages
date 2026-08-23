@@ -80,6 +80,16 @@ done
 [[ $shell_before == "$(sha256sum "$XDG_CONFIG_HOME/omarchy/shell.json")" ]]
 [[ ! -e $XDG_CONFIG_HOME/omarchy/plugins/nomarkoo.keyboard-layout ]]
 
+# The documented curl-pipe-shell shape works without relying on BASH_SOURCE.
+prepare_home stdin_install
+git -C "$fixture_remote" checkout -q --detach "$fixture_commit_two"
+stdin_stderr="$test_root/stdin-install.stderr"
+NOMARKOO_TEST_HYPR_MODE=live NOMARKOO_SKIP_SHELL_RESTART=1 \
+  bash -s -- --commit "$fixture_commit_two" <"$fixture_remote/install.sh" \
+  >/dev/null 2>"$stdin_stderr"
+[[ ! -s $stdin_stderr ]]
+assert_installed "$fixture_commit_two"
+
 # Clean install imports the live XKB configuration, is detached, updates to an
 # exact second commit, and remains idempotent.
 prepare_home clean
