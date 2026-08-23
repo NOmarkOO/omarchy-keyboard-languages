@@ -118,7 +118,7 @@ If the panel cannot start, restore the newest `~/.config/omarchy/shell.json.bak.
 
 Omarchy plugins execute unsandboxed QML and processes inside the long-lived shell. Review code before enabling any plugin; the [official Omarchy plugin manual](https://github.com/basecamp/omarchy/blob/quattro/manual/32-shell-plugins.md) gives the same warning.
 
-This plugin performs no telemetry and makes no runtime network requests. The installer requires a full commit SHA, checks out that exact commit in detached mode before executing repository helpers, writes only user-owned Omarchy configuration/state paths, and invokes one `omarchy restart shell`. It never uses `sudo`, edits `/usr/share/omarchy`, or runs `hyprctl reload`.
+This plugin performs no telemetry and makes no runtime network requests. The installer requires a full commit SHA, checks out that exact commit in detached mode before executing repository helpers, writes only user-owned Omarchy configuration/state paths, and invokes one `omarchy restart shell`. It requires no elevated privileges, edits no packaged Omarchy files, and never reloads Hyprland.
 
 ## Development
 
