@@ -12,6 +12,8 @@ Left-click the bar label to switch language. Right-click it to manage layouts, a
 
 > [!NOTE]
 > This is an independent community plugin. It is not an official Omarchy or Basecamp project and is not supported by them.
+>
+> You can also take a look at this project here: [Omarchy Plugin Marketplace](https://omarchyplugins.com/plugin.html?id=nomarkoo.keyboard-layout)
 
 ## Install
 
