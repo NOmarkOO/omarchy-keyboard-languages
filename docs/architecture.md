@@ -4,6 +4,8 @@ The repository root is an Omarchy `bar-widget` plugin, so Omarchy can clone and 
 
 The QML resolves `bin/nomarkoo-keyboard-layout` relative to its own checkout. UI and helper therefore always come from the same revision.
 
+Installation requires a full commit SHA. The installer fetches only that commit, checks it out detached, verifies `HEAD`, and executes the helper and shell patcher from the verified checkout. The installation record keeps the commit for diagnostics, while a failed update restores the previous commit and branch/detached state.
+
 ## State flow
 
 1. On first use, the helper imports `input:kb_layout`, `input:kb_variant`, and `input:kb_options` from a live Hyprland session.

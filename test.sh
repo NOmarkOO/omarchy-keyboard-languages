@@ -28,6 +28,7 @@ qmllint -I "${OMARCHY_PATH:-/usr/share/omarchy}/shell" \
   "$repo_root/KeyboardSearchableDropdown.qml"
 
 rg -q 'defaultSection.*right' "$repo_root/manifest.json"
+[[ $(jq -r '.version' "$repo_root/manifest.json") == 1.0.1 ]]
 rg -q 'Qt\.resolvedUrl\("bin/nomarkoo-keyboard-layout"\)' "$repo_root/KeyboardLayout.qml"
 rg -q 'target: "nomarkoo.keyboard-layout.demo"' "$repo_root/KeyboardLayout.qml"
 if rg -q 'command: \["nomarkoo-keyboard-layout"|\.local/bin/nomarkoo-keyboard-layout' \
@@ -46,6 +47,15 @@ fi
 rg -q 'function resetAddEditor\(\)' "$repo_root/KeyboardLayout.qml"
 [[ $(rg -c 'resetAddEditor\(\)' "$repo_root/KeyboardLayout.qml") -ge 4 ]]
 rg -q 'onClosed: searchField.text = ""' "$repo_root/KeyboardSearchableDropdown.qml"
+
+if rg -n \
+  'raw\.githubusercontent\.com/NOmarkOO/omarchy-keyboard-languages/main/install\.sh|fetch[^\n]*origin main|--branch main|omarchy plugin update nomarkoo\.keyboard-layout' \
+  "$repo_root/README.md" "$repo_root/install.sh"; then
+  printf 'Mutable upstream execution returned to the reviewed install or update path.\n' >&2
+  exit 1
+fi
+rg -q -- '--commit' "$repo_root/install.sh"
+rg -q 'checkout --quiet --detach' "$repo_root/install.sh"
 
 "$repo_root/tests/helper.test.sh"
 "$repo_root/tests/installer.test.sh"

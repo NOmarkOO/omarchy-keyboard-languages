@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "nomarkoo.keyboard-layout",
   "name": "Keyboard languages",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "NOmarkOO",
   "description": "Quattro-native keyboard language indicator and manager",
   "kinds": [

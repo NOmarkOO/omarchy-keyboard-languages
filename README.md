@@ -15,21 +15,19 @@ Left-click the bar label to switch language. Right-click it to manage layouts, a
 
 ## Install
 
-Run this from a terminal inside your Omarchy desktop session:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NOmarkOO/omarchy-keyboard-languages/main/install.sh | bash
-```
+Open the [latest release](https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/latest) and run its exact-SHA install command from a terminal inside your Omarchy desktop session. Release commands pin both the downloaded installer and installed plugin to the same immutable 40-character commit.
 
 The installer imports your current layouts, variants, group shortcut, and other XKB options. It replaces the stock keyboard indicator, places itself immediately before the tray, and restarts only `omarchy-shell`. It never reloads Hyprland.
 
 Prefer to inspect scripts before running them?
 
 ```bash
-git clone https://github.com/NOmarkOO/omarchy-keyboard-languages.git
+commit=<FULL_40_CHARACTER_RELEASE_COMMIT>
+git clone --no-checkout https://github.com/NOmarkOO/omarchy-keyboard-languages.git
 cd omarchy-keyboard-languages
+git checkout --detach "$commit"
 less install.sh
-./install.sh
+./install.sh --commit "$commit"
 ```
 
 The installer is idempotent. It also migrates the earlier copied `nomarkoo.keyboard-layout` installation to a normal Git-managed Omarchy plugin and keeps a recoverable backup.
@@ -71,13 +69,9 @@ These dependencies are present on a standard Quattro system. The first install d
 
 ## Update
 
-Use Omarchy's native plugin updater:
+Use the exact-SHA command from the newest [GitHub release](https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/latest). It updates the existing checkout only after fetching and verifying that reviewed commit. Local edits inside the installed plugin are never overwritten.
 
-```bash
-omarchy plugin update nomarkoo.keyboard-layout
-```
-
-You can also rerun the installer. Local edits inside the installed plugin are never overwritten.
+Omarchy's native plugin updater follows mutable upstream `HEAD`; that is useful for testing current development but is not bound to the Marketplace-reviewed release snapshot.
 
 ## Remove
 
@@ -110,7 +104,7 @@ If the panel cannot start, restore the newest `~/.config/omarchy/shell.json.bak.
 
 Omarchy plugins execute unsandboxed QML and processes inside the long-lived shell. Review code before enabling any plugin; the [official Omarchy plugin manual](https://github.com/basecamp/omarchy/blob/quattro/manual/32-shell-plugins.md) gives the same warning.
 
-This plugin performs no telemetry and makes no runtime network requests. The installer clones this repository, writes only user-owned Omarchy configuration/state paths, and invokes one `omarchy restart shell`. It never uses `sudo`, edits `/usr/share/omarchy`, or runs `hyprctl reload`.
+This plugin performs no telemetry and makes no runtime network requests. The installer requires a full commit SHA, checks out that exact commit in detached mode before executing repository helpers, writes only user-owned Omarchy configuration/state paths, and invokes one `omarchy restart shell`. It never uses `sudo`, edits `/usr/share/omarchy`, or runs `hyprctl reload`.
 
 ## Development
 

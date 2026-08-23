@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 readonly PLUGIN_ID="nomarkoo.keyboard-layout"
-readonly REPOSITORY_URL="${NOMARKOO_KEYBOARD_REPO_URL:-https://github.com/NOmarkOO/omarchy-keyboard-languages.git}"
+readonly REPOSITORY_URL="https://github.com/NOmarkOO/omarchy-keyboard-languages.git"
 readonly CONFIG_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}"
 readonly STATE_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}"
 readonly PLUGINS_DIR="$CONFIG_ROOT/omarchy/plugins"
@@ -19,13 +19,24 @@ stage=""
 transaction=""
 target_backup=""
 old_target_head=""
+old_target_ref=""
 shell_changed=false
 target_changed=false
 state_changed=false
 success=false
+requested_commit=""
 
 say() { printf 'keyboard-languages: %s\n' "$*"; }
 die() { printf 'keyboard-languages: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<'EOF'
+Usage: install.sh --commit <full-40-character-commit-sha>
+
+Installs exactly the requested reviewed repository snapshot. Branches,
+tags, and abbreviated commits are deliberately rejected.
+EOF
+}
 
 require() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
@@ -76,7 +87,12 @@ rollback() {
     fi
   fi
   if [[ -n $old_target_head && -d $TARGET/.git ]]; then
-    git -C "$TARGET" reset --hard "$old_target_head" >/dev/null 2>&1 || true
+    if [[ -n $old_target_ref ]]; then
+      git -C "$TARGET" checkout --force "$old_target_ref" >/dev/null 2>&1 || true
+      git -C "$TARGET" reset --hard "$old_target_head" >/dev/null 2>&1 || true
+    else
+      git -C "$TARGET" checkout --force --detach "$old_target_head" >/dev/null 2>&1 || true
+    fi
   fi
 
   [[ -z $stage || ! -e $stage ]] || rm -rf -- "$stage"
@@ -85,6 +101,27 @@ rollback() {
   fi
   exit "$exit_code"
 }
+
+while (( $# > 0 )); do
+  case "$1" in
+  --commit)
+    (( $# >= 2 )) || die '--commit requires a full 40-character commit SHA.'
+    requested_commit=${2,,}
+    shift 2
+    ;;
+  -h | --help)
+    usage
+    success=true
+    exit 0
+    ;;
+  *)
+    die "Unknown installer argument: $1"
+    ;;
+  esac
+done
+
+[[ $requested_commit =~ ^[0-9a-f]{40}$ ]] \
+  || die 'A full 40-character commit SHA is required; branches, tags, and abbreviated commits are not accepted.'
 
 trap rollback ERR INT TERM EXIT
 
@@ -130,31 +167,44 @@ fi
 
 expected_origin=$(canonical_origin "$REPOSITORY_URL")
 if [[ -e $TARGET && -d $TARGET/.git ]]; then
-  installed_origin=$(git -C "$TARGET" remote get-url origin 2>/dev/null || true)
+  installed_origin=$(git -C "$TARGET" config --get remote.origin.url 2>/dev/null || true)
   [[ -n $installed_origin ]] || die "The installed plugin has no origin remote: $TARGET"
   [[ $(canonical_origin "$installed_origin") == "$expected_origin" ]] \
     || die "Plugin id $PLUGIN_ID belongs to a different Git repository at $TARGET; nothing was overwritten."
   [[ -z $(git -C "$TARGET" status --porcelain) ]] \
     || die "The installed plugin has local changes. Commit or discard them before updating."
 
-  if [[ $script_dir != "$TARGET" ]]; then
-    old_target_head=$(git -C "$TARGET" rev-parse HEAD)
-    git -C "$TARGET" fetch --quiet origin main
-    git -C "$TARGET" merge --ff-only FETCH_HEAD >/dev/null
+  old_target_head=$(git -C "$TARGET" rev-parse HEAD)
+  old_target_ref=$(git -C "$TARGET" symbolic-ref --quiet HEAD 2>/dev/null || true)
+  if ! git -C "$TARGET" cat-file -e "$requested_commit^{commit}" 2>/dev/null; then
+    git -C "$TARGET" fetch --quiet --depth 1 \
+      https://github.com/NOmarkOO/omarchy-keyboard-languages.git "$requested_commit"
   fi
+  git -C "$TARGET" checkout --quiet --detach "$requested_commit"
   checkout=$TARGET
-  say "Using the existing Git-managed plugin checkout."
+  say "Using the existing Git-managed plugin checkout at $requested_commit."
 else
   stage="$PLUGINS_DIR/.${PLUGIN_ID}.install.$$"
   rm -rf -- "$stage"
+  git init --quiet "$stage"
+  git -C "$stage" remote add origin "$REPOSITORY_URL"
   if [[ -n $script_dir ]]; then
-    git clone --quiet --no-local -- "$script_dir" "$stage"
-    git -C "$stage" remote set-url origin "$REPOSITORY_URL"
+    source_head=$(git -C "$script_dir" rev-parse HEAD)
+    [[ $source_head == "$requested_commit" ]] \
+      || die "The local installer checkout is at $source_head, not requested commit $requested_commit."
+    git -C "$stage" fetch --quiet --depth 1 "$script_dir" "$requested_commit"
   else
-    git clone --quiet --depth 1 --branch main -- "$REPOSITORY_URL" "$stage"
+    git -C "$stage" fetch --quiet --depth 1 \
+      https://github.com/NOmarkOO/omarchy-keyboard-languages.git "$requested_commit"
   fi
+  git -C "$stage" checkout --quiet --detach "$requested_commit"
   checkout=$stage
 fi
+
+[[ $(git -C "$checkout" rev-parse HEAD) == "$requested_commit" ]] \
+  || die 'The fetched plugin checkout does not match the requested commit.'
+[[ -z $(git -C "$checkout" symbolic-ref --quiet HEAD 2>/dev/null || true) ]] \
+  || die 'The fetched plugin checkout is not detached.'
 
 omarchy plugin validate "$checkout" >/dev/null
 helper="$checkout/bin/nomarkoo-keyboard-layout"
@@ -214,8 +264,9 @@ fi
 jq -n \
   --arg installedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg repository "$REPOSITORY_URL" \
+  --arg commit "$requested_commit" \
   --arg pluginBackup "$target_backup" \
-  '{version:1, installedAt:$installedAt, repository:$repository, previousPluginBackup:$pluginBackup}' \
+  '{version:2, installedAt:$installedAt, repository:$repository, commit:$commit, previousPluginBackup:$pluginBackup}' \
   >"$INSTALL_RECORD"
 chmod 0644 "$INSTALL_RECORD"
 
@@ -236,5 +287,5 @@ fi
 success=true
 trap - ERR INT TERM EXIT
 rm -rf -- "$transaction"
-say "Installed $PLUGIN_ID from $REPOSITORY_URL"
+say "Installed $PLUGIN_ID at reviewed commit $requested_commit"
 say 'Left-click switches language; right-click opens the manager.'
