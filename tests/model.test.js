@@ -21,6 +21,18 @@ assert.equal(Model.duplicate(configured, "ru", ""), true)
 assert.equal(Model.duplicate(configured, "ru", "phonetic"), false)
 assert.ok(Model.baseLayoutOptions(catalog, configured).some((item) => item.value === "ru"))
 assert.ok(Model.variantOptions(catalog, "ru", configured).some((item) => item.value !== ""))
+
+// The default "br" layout is XKB's ABNT2 keymap, but its own description
+// ("Portuguese (Brazil)") never says so. Surface the alias in the base-layout
+// entry's description so the searchable picker (label/description substring
+// match) finds it when someone searches "abnt2".
+assert.equal(Model.aliasFor("br"), "ABNT2")
+assert.equal(Model.aliasFor("us"), "")
+assert.ok(
+  Model.baseLayoutOptions(catalog, configured).some(
+    (item) => item.value === "br" && item.description.includes("ABNT2")
+  )
+)
 assert.equal(Model.canDelete(configured, 1).ok, true)
 assert.equal(Model.canDelete(configured, 0).ok, false)
 assert.match(Model.canDelete(configured, 0).reason, /Latin layout first/)

@@ -156,6 +156,19 @@ function labelFor(catalog, layout, variant) {
   return (raw + "XX").substring(0, 2)
 }
 
+// XKB's own description doesn't always name the keyboard standard people
+// search for, so the search box (which only matches label/description, see
+// KeyboardSearchableDropdown.recomputeFiltered) would otherwise miss it. Keyed
+// by layout code; only ever surfaced on that layout's base (no-variant) entry,
+// since that's the one shipping the alias in practice.
+var LAYOUT_ALIASES = {
+  br: "ABNT2"
+}
+
+function aliasFor(layout) {
+  return LAYOUT_ALIASES[layout] || ""
+}
+
 function baseLayoutOptions(catalog, configured) {
   var used = {}
   normalizeLayouts(configured).forEach(function(item) { used[item.layout + "\u0000" + item.variant] = true })
@@ -168,7 +181,9 @@ function baseLayoutOptions(catalog, configured) {
       return candidate.layout === item.layout && !used[candidate.layout + "\u0000" + candidate.variant]
     })
   }).map(function(item) {
-    return { value: item.layout, label: item.description, description: item.layout.toUpperCase() }
+    var alias = aliasFor(item.layout)
+    var description = item.layout.toUpperCase() + (alias ? " · " + alias : "")
+    return { value: item.layout, label: item.description, description: description }
   })
 }
 
@@ -224,6 +239,7 @@ function selectKeyboard(typed, namedByEvent) {
 }
 
 if (typeof module !== "undefined") module.exports = {
+  aliasFor: aliasFor,
   baseLayoutOptions: baseLayoutOptions,
   canDelete: canDelete,
   descriptionFor: descriptionFor,
