@@ -166,7 +166,7 @@ var LAYOUT_ALIASES = {
 }
 
 function aliasFor(layout) {
-  return LAYOUT_ALIASES[layout] || ""
+  return Object.prototype.hasOwnProperty.call(LAYOUT_ALIASES, layout) ? LAYOUT_ALIASES[layout] : ""
 }
 
 function baseLayoutOptions(catalog, configured) {

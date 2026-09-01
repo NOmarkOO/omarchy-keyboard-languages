@@ -28,6 +28,10 @@ assert.ok(Model.variantOptions(catalog, "ru", configured).some((item) => item.va
 // match) finds it when someone searches "abnt2".
 assert.equal(Model.aliasFor("br"), "ABNT2")
 assert.equal(Model.aliasFor("us"), "")
+// Guards against resolving inherited Object.prototype members for an
+// unexpected layout code (e.g. "toString", "constructor").
+assert.equal(Model.aliasFor("toString"), "")
+assert.equal(Model.aliasFor("constructor"), "")
 assert.ok(
   Model.baseLayoutOptions(catalog, configured).some(
     (item) => item.value === "br" && item.description.includes("ABNT2")
