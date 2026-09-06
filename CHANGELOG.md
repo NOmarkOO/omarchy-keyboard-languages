@@ -2,6 +2,12 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- The "Add language" picker now shows "ABNT2" next to Brazil's default `br` layout, so searching "abnt2" finds it. XKB's own description ("Portuguese (Brazil)") never named the keyboard standard, even though the default `br` keymap is ABNT2.
+
 ## [1.0.2] - 2026-08-23
 
 ### Added
