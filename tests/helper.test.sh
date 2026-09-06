@@ -60,6 +60,48 @@ initial=$(jq -c . "$repo_root/tests/fixtures/state.json")
   .switchOption == "grp:alt_shift_toggle"
 ' >/dev/null
 
+# Bar aliases are per configured entry and update state metadata without
+# compiling, applying, or otherwise touching the live keymap and toggle.
+state_file=$XDG_STATE_HOME/omarchy/settings/nomarkoo-keyboard-layout.json
+toggle_file=$XDG_STATE_HOME/omarchy/toggles/hypr/nomarkoo-keyboard-layout.lua
+toggle_stamp=$(stat -c '%i:%y:%s' "$toggle_file")
+: >"$NOMARKOO_TEST_HYPR_LOG"
+NOMARKOO_TEST_HYPR_MODE=live "$helper" alias 0 "  Work  " | jq -e '
+  .layouts[0].alias == "Work" and (.layouts[1] | has("alias") | not)
+' >/dev/null
+NOMARKOO_TEST_HYPR_MODE=live "$helper" alias 1 "РУС" | jq -e '
+  .layouts[0].alias == "Work" and .layouts[1].alias == "РУС"
+' >/dev/null
+[[ ! -s $NOMARKOO_TEST_HYPR_LOG ]]
+[[ $toggle_stamp == "$(stat -c '%i:%y:%s' "$toggle_file")" ]]
+
+state_stamp=$(stat -c '%i:%y:%s' "$state_file")
+"$helper" alias 1 "РУС" >/dev/null
+[[ $state_stamp == "$(stat -c '%i:%y:%s' "$state_file")" ]]
+
+before_invalid=$(sha256sum "$state_file")
+for invalid_alias in 1234567 $'bad\talias'; do
+  if "$helper" alias 0 "$invalid_alias" >/dev/null 2>&1; then
+    printf 'An invalid bar alias unexpectedly succeeded.\n' >&2
+    exit 1
+  fi
+done
+if "$helper" alias 99 nope >/dev/null 2>&1; then
+  printf 'A bar alias for a missing language unexpectedly succeeded.\n' >&2
+  exit 1
+fi
+invalid_alias_state=$(jq -c '.layouts[0].alias = false' "$state_file")
+if "$helper" install-json "$invalid_alias_state" 0 >/dev/null 2>&1; then
+  printf 'A non-string persisted bar alias unexpectedly succeeded.\n' >&2
+  exit 1
+fi
+[[ $before_invalid == "$(sha256sum "$state_file")" ]]
+
+"$helper" alias 0 "" | jq -e '(.layouts[0] | has("alias") | not) and .layouts[1].alias == "РУС"' >/dev/null
+"$helper" alias 1 "" | jq -e 'all(.layouts[]; has("alias") | not)' >/dev/null
+[[ ! -s $NOMARKOO_TEST_HYPR_LOG ]]
+[[ $toggle_stamp == "$(stat -c '%i:%y:%s' "$toggle_file")" ]]
+
 # Regression: neither action relies on the old shell.json-only `latin` field.
 "$helper" shortcut grp:ctrl_shift_toggle >/dev/null
 "$helper" add de "" >/dev/null

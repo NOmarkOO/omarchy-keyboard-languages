@@ -4,9 +4,9 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
-### Changed
+### Added
 
-- The "Add language" picker now shows "ABNT2" next to Brazil's default `br` layout, so searching "abnt2" finds it. XKB's own description ("Portuguese (Brazil)") never named the keyboard standard, even though the default `br` keymap is ABNT2.
+- Configured layouts can now use a custom bar alias of up to six characters. Aliases are edited per layout or variant from the language manager, and clearing one restores the automatic two-letter label without reapplying the keyboard configuration. Thanks to [@msouza10](https://github.com/msouza10), whose original alias proposal inspired the customizable feature.
 
 ## [1.0.2] - 2026-08-23
 

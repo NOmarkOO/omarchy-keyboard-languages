@@ -13,6 +13,8 @@ Installation requires a full commit SHA. The installer fetches only that commit,
 3. It pauses Hyprland config autoreload, writes state and the generated Omarchy toggle atomically, applies only the three input values through `hl.config` IPC, selects the requested index, and restores autoreload.
 4. Any rejected apply restores both files and the previous live values.
 
+Bar aliases are optional metadata on individual layout entries. The helper updates them atomically under the same state lock, but deliberately leaves the generated toggle and live Hyprland configuration untouched.
+
 Before shrinking the layout array, every Hyprland keyboard device is moved to an index guaranteed to survive. This avoids retaining references to a removed keymap—the failure mode that made early removal implementations destabilize a session.
 
 ## Compatibility boundary

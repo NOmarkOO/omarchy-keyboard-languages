@@ -131,9 +131,35 @@ function normalizeLayouts(value) {
     return {
       layout: String(item.layout),
       variant: String(item.variant || ""),
+      alias: aliasError(item.alias) === "" ? normalizeAlias(item.alias) : "",
       latin: item.latin === true
     }
   })
+}
+
+function normalizeAlias(value) {
+  return String(value || "").trim()
+}
+
+function aliasLength(value) {
+  var text = String(value || "")
+  var length = 0
+  for (var index = 0; index < text.length; index++) {
+    var first = text.charCodeAt(index)
+    if (first >= 0xD800 && first <= 0xDBFF && index + 1 < text.length) {
+      var second = text.charCodeAt(index + 1)
+      if (second >= 0xDC00 && second <= 0xDFFF) index++
+    }
+    length++
+  }
+  return length
+}
+
+function aliasError(value) {
+  var raw = String(value || "")
+  if (/[\u0000-\u001F\u007F-\u009F]/.test(raw)) return "Aliases cannot contain control characters."
+  if (aliasLength(normalizeAlias(raw)) > 6) return "Use 6 characters or fewer."
+  return ""
 }
 
 function findCatalogEntry(catalog, layout, variant) {
@@ -148,25 +174,14 @@ function descriptionFor(catalog, layout, variant) {
   return item ? item.description : [layout, variant].filter(Boolean).join(" (") + (variant ? ")" : "")
 }
 
-function labelFor(catalog, layout, variant) {
+function labelFor(catalog, layout, variant, alias) {
+  var custom = normalizeAlias(alias)
+  if (custom && aliasError(alias) === "") return custom
   var item = findCatalogEntry(catalog, layout, variant)
   var raw = item && item.brief ? item.brief.split("-")[0] : String(layout || "")
   raw = raw.replace(/[^A-Za-z]/g, "").toUpperCase()
   if (raw.length < 2) raw += String(layout || "XX").replace(/[^A-Za-z]/g, "").toUpperCase()
   return (raw + "XX").substring(0, 2)
-}
-
-// XKB's own description doesn't always name the keyboard standard people
-// search for, so the search box (which only matches label/description, see
-// KeyboardSearchableDropdown.recomputeFiltered) would otherwise miss it. Keyed
-// by layout code; only ever surfaced on that layout's base (no-variant) entry,
-// since that's the one shipping the alias in practice.
-var LAYOUT_ALIASES = {
-  br: "ABNT2"
-}
-
-function aliasFor(layout) {
-  return Object.prototype.hasOwnProperty.call(LAYOUT_ALIASES, layout) ? LAYOUT_ALIASES[layout] : ""
 }
 
 function baseLayoutOptions(catalog, configured) {
@@ -181,9 +196,7 @@ function baseLayoutOptions(catalog, configured) {
       return candidate.layout === item.layout && !used[candidate.layout + "\u0000" + candidate.variant]
     })
   }).map(function(item) {
-    var alias = aliasFor(item.layout)
-    var description = item.layout.toUpperCase() + (alias ? " · " + alias : "")
-    return { value: item.layout, label: item.description, description: description }
+    return { value: item.layout, label: item.description, description: item.layout.toUpperCase() }
   })
 }
 
@@ -239,7 +252,8 @@ function selectKeyboard(typed, namedByEvent) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  aliasFor: aliasFor,
+  aliasLength: aliasLength,
+  aliasError: aliasError,
   baseLayoutOptions: baseLayoutOptions,
   canDelete: canDelete,
   descriptionFor: descriptionFor,
@@ -249,10 +263,10 @@ if (typeof module !== "undefined") module.exports = {
   heroPhrases: heroPhrases,
   isTypedKeyboard: isTypedKeyboard,
   labelFor: labelFor,
+  normalizeAlias: normalizeAlias,
   normalizeLayouts: normalizeLayouts,
   parseCatalog: parseCatalog,
   popupPlacement: popupPlacement,
   selectKeyboard: selectKeyboard,
   variantOptions: variantOptions
 }
-

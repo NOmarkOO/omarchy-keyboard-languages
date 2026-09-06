@@ -8,11 +8,11 @@
 [![Checks](https://github.com/NOmarkOO/omarchy-keyboard-languages/actions/workflows/ci.yml/badge.svg)](https://github.com/NOmarkOO/omarchy-keyboard-languages/actions/workflows/ci.yml)
 [![MIT License](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 
-A two-letter keyboard-language indicator and complete XKB layout manager for the Omarchy Quattro bar.
+A compact, customizable keyboard-language indicator and complete XKB layout manager for the Omarchy Quattro bar.
 
 ![Keyboard Languages across four Omarchy Quattro themes](preview.png)
 
-Left-click the bar label to switch language. Right-click it to manage layouts, add variants, remove layouts safely, or change the switching shortcut.
+Left-click the bar label to switch language. Right-click it to manage layouts, customize their bar aliases, add variants, remove layouts safely, or change the switching shortcut.
 
 > [!NOTE]
 > This is an independent community plugin. It is not an official Omarchy or Basecamp project and is not supported by them.
@@ -47,7 +47,7 @@ The installer is idempotent. It also migrates the earlier copied `nomarkoo.keybo
 
 ## What it does
 
-- Shows the active layout as a compact two-letter bar label.
+- Shows the active layout as a compact automatic label or a custom alias of up to six characters.
 - Switches to the next configured layout on left-click.
 - Opens a keyboard-first, screen-aware manager on right-click.
 - Discovers installed XKB layouts, variants, and valid group shortcuts.
@@ -66,9 +66,9 @@ It remains a third-party plugin because it is distributed outside the Omarchy re
 
 ## Across Quattro themes
 
-| Matte Black · manager | Catppuccin · add language |
+| Matte Black · manager | Catppuccin · alias editor |
 | --- | --- |
-| ![Main language manager in Matte Black](docs/screenshots/matte-black-manager.png) | ![Add-language picker in Catppuccin](docs/screenshots/catppuccin-add-language.png) |
+| ![Main language manager in Matte Black](docs/screenshots/matte-black-manager.png) | ![Bar-alias editor in Catppuccin](docs/screenshots/catppuccin-alias-editor.png) |
 | Flexoki Light · shortcut | Gruvbox · remove confirmation |
 | ![Shortcut picker in Flexoki Light](docs/screenshots/flexoki-light-shortcut.png) | ![Removal confirmation in Gruvbox](docs/screenshots/gruvbox-remove-confirmation.png) |
 
@@ -118,6 +118,8 @@ The JSON document is the source of truth; the Lua file is generated for Omarchy'
 ~/.local/state/omarchy/settings/nomarkoo-keyboard-layout-install-backup/
 ```
 
+Custom bar aliases are stored with their layout or variant in the JSON state. Clearing an alias in the panel restores the automatic label; alias-only edits never reapply the XKB keymap.
+
 If the panel cannot start, restore the newest `~/.config/omarchy/shell.json.bak.*` and run `omarchy restart shell`. Open a [bug report](https://github.com/NOmarkOO/omarchy-keyboard-languages/issues/new?template=bug.yml) with your Omarchy and Hyprland versions if the problem continues.
 
 ## Security
@@ -139,3 +141,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/architecture.md](docs/architect
 ## License and attribution
 
 Released under the [MIT License](LICENSE). Omarchy is an independent MIT-licensed project by Basecamp; its name and project links are used only to identify compatibility. See the [Omarchy repository](https://github.com/basecamp/omarchy).
+
+Custom bar aliases were inspired by [@msouza10](https://github.com/msouza10), whose contribution highlighted the need for user-defined layout labels.

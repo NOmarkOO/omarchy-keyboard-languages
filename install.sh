@@ -214,7 +214,7 @@ patcher="$checkout/bin/patch-shell-json"
 
 if [[ -f $STATE_FILE ]]; then
   payload=$(jq -ce '
-    {version: 1, layouts: [.layouts[] | {layout, variant}], switchOption, nonGroupOptions}
+    {version: 1, layouts: [.layouts[] | {layout, variant} + (if has("alias") then {alias} else {} end)], switchOption, nonGroupOptions}
     | select(.layouts | length > 0)
   ' "$STATE_FILE") || die "Existing keyboard state is invalid: $STATE_FILE"
 elif [[ -f $TOGGLE_FILE ]]; then

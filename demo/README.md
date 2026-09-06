@@ -1,6 +1,6 @@
 # Screenshot harness
 
-`capture.sh` renders the installed plugin in four stock Quattro themes on a temporary empty workspace. A shell trap restores both the previous workspace and theme. Its dedicated IPC target can only navigate among panel views; it cannot invoke Add, Apply, Remove, or any keyboard helper action.
+`capture.sh` renders the installed plugin in four stock Quattro themes on a temporary empty workspace. A shell trap restores both the previous workspace and theme. Its dedicated IPC target can only navigate among panel views and stage an unsaved alias preview; it cannot invoke Add, Apply, Remove, or any keyboard helper action.
 
 Run it from a live Quattro session after installing the current checkout:
 

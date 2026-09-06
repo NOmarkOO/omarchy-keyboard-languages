@@ -4,7 +4,7 @@
   "name": "Keyboard languages",
   "version": "1.0.2",
   "author": "NOmarkOO",
-  "description": "Switch and manage keyboard languages directly from the Omarchy bar. Add layouts and variants, remove them safely, and change the shortcut in a theme-aware Quattro panel.",
+  "description": "Switch and manage keyboard languages directly from the Omarchy bar. Customize labels, add layouts and variants, remove them safely, and change the shortcut in a theme-aware Quattro panel.",
   "license": "MIT",
   "kinds": [
     "bar-widget"

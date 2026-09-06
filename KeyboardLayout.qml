@@ -38,6 +38,8 @@ Panel {
     property string selectedLayout: ""
     property string selectedVariant: ""
     property string selectedShortcut: ""
+    property int editingAliasIndex: -1
+    property string selectedAlias: ""
     property int cursorIndex: 0
     property int pendingDeleteIndex: -1
     property string statusText: ""
@@ -70,13 +72,17 @@ Panel {
     }
     readonly property string layoutLabel: {
         var item = configuredLayouts[Math.max(0, Math.min(activeLayoutIndex, configuredLayouts.length - 1))];
-        return item ? Model.labelFor(catalog, item.layout, item.variant) : "KB";
+        return item ? Model.labelFor(catalog, item.layout, item.variant, item.alias) : "KB";
     }
     readonly property string activeDescription: {
         var item = configuredLayouts[Math.max(0, Math.min(activeLayoutIndex, configuredLayouts.length - 1))];
         return item ? Model.descriptionFor(catalog, item.layout, item.variant) : layoutFull;
     }
     readonly property bool editorOpen: view !== "main"
+    readonly property var editingAliasLayout: editingAliasIndex >= 0 && editingAliasIndex < configuredLayouts.length ? configuredLayouts[editingAliasIndex] : null
+    readonly property string automaticAlias: editingAliasLayout ? Model.labelFor(catalog, editingAliasLayout.layout, editingAliasLayout.variant, "") : ""
+    readonly property string aliasPreview: editingAliasLayout ? Model.labelFor(catalog, editingAliasLayout.layout, editingAliasLayout.variant, selectedAlias) : ""
+    readonly property string aliasValidationError: Model.aliasError(selectedAlias)
 
     function shortcutLabel(value) {
         var found = catalog.shortcuts.find(function(item) {
@@ -124,10 +130,33 @@ Panel {
         return true;
     }
 
+    function acceptMetadataState(text) {
+        var parsed;
+        try {
+            parsed = JSON.parse(String(text || "").trim());
+        } catch (error) {
+            return false;
+        }
+        var current = configuredLayouts;
+        var next = Model.normalizeLayouts(parsed && parsed.layouts);
+        if (!parsed || next.length !== current.length)
+            return false;
+        for (var index = 0; index < next.length; index++) {
+            if (next[index].layout !== current[index].layout || next[index].variant !== current[index].variant)
+                return false;
+            next[index].latin = current[index].latin;
+        }
+        parsed.layouts = next;
+        managedState = parsed;
+        stateReady = true;
+        return true;
+    }
+
     function openMain() {
         resetPhraseRotation(true);
         view = "main";
         resetAddEditor();
+        resetAliasEditor();
         selectedShortcut = switchOption;
         statusText = "";
         cursorIndex = Math.max(0, Math.min(cursorIndex, configuredLayouts.length + 1));
@@ -152,11 +181,32 @@ Panel {
         statusText = "";
     }
 
+    function startAlias(index) {
+        if (!stateReady || index < 0 || index >= configuredLayouts.length)
+            return ;
+        resetPhraseRotation(true);
+        editingAliasIndex = index;
+        selectedAlias = String(configuredLayouts[index].alias || "");
+        aliasField.text = selectedAlias;
+        view = "alias";
+        statusText = "";
+        Qt.callLater(function() {
+            aliasField.forceActiveFocus();
+            aliasField.selectAll();
+        });
+    }
+
     function resetAddEditor() {
         languagePicker.resetSearch();
         variantPicker.resetSearch();
         selectedLayout = "";
         selectedVariant = "";
+    }
+
+    function resetAliasEditor() {
+        editingAliasIndex = -1;
+        selectedAlias = "";
+        aliasField.text = "";
     }
 
     function resetPhraseRotation(resetIndex) {
@@ -166,7 +216,7 @@ Panel {
         hero.metaOpacity = 1;
     }
 
-    function runAction(actionArguments, message, loadingMessage) {
+    function runAction(actionArguments, message, loadingMessage, metadataOnly) {
         if (applyProc.pending)
             return ;
         if (stateProc.running || !stateReady) {
@@ -177,6 +227,7 @@ Panel {
         statusError = false;
         statusText = loadingMessage || "Applying keyboard settings…";
         applyProc.successMessage = message;
+        applyProc.metadataOnly = metadataOnly === true;
         applyProc.command = [root.helperCommand].concat(actionArguments);
         applyProc.pending = true;
         applyTimeout.restart();
@@ -237,6 +288,23 @@ Panel {
         runAction(["shortcut", selectedShortcut], "Switching shortcut updated.");
     }
 
+    function saveAlias() {
+        if (!editingAliasLayout)
+            return ;
+        if (aliasValidationError !== "") {
+            statusError = true;
+            statusText = aliasValidationError;
+            return ;
+        }
+        runAction(["alias", String(editingAliasIndex), Model.normalizeAlias(selectedAlias)], "Bar alias updated.", "Saving bar alias…", true);
+    }
+
+    function useAutomaticAlias() {
+        selectedAlias = "";
+        aliasField.text = "";
+        saveAlias();
+    }
+
     function activateCursor() {
         if (view !== "main")
             return ;
@@ -279,6 +347,14 @@ Panel {
             Qt.callLater(root.startAdd);
         }
 
+        function showAlias() {
+            root.open();
+            Qt.callLater(function() {
+                root.startAlias(0);
+                aliasField.text = "Work";
+            });
+        }
+
         function showShortcut() {
             root.open();
             Qt.callLater(root.startShortcut);
@@ -300,6 +376,7 @@ Panel {
             refresh();
         } else {
             resetAddEditor();
+            resetAliasEditor();
             resetPhraseRotation(true);
         }
     }
@@ -390,16 +467,21 @@ Panel {
 
         property string successMessage: ""
         property bool pending: false
+        property bool metadataOnly: false
 
         onExited: function(exitCode) {
             if (!pending)
                 return ;
+            var wasMetadataOnly = metadataOnly;
             pending = false;
+            metadataOnly = false;
             applyTimeout.stop();
-            if (exitCode === 0 && root.acceptState(applyStdout.text)) {
+            var accepted = exitCode === 0 && (wasMetadataOnly ? root.acceptMetadataState(applyStdout.text) : root.acceptState(applyStdout.text));
+            if (accepted) {
                 root.statusError = false;
                 root.openMain();
-                refreshTimer.restart();
+                if (!wasMetadataOnly)
+                    refreshTimer.restart();
             } else {
                 root.statusError = true;
                 root.statusText = String(applyStderr.text || "Keyboard settings could not be applied. Your previous settings are still active.").trim();
@@ -458,6 +540,7 @@ Panel {
             if (!applyProc.pending)
                 return ;
             applyProc.pending = false;
+            applyProc.metadataOnly = false;
             if (applyProc.running)
                 applyProc.running = false;
             root.statusError = true;
@@ -559,7 +642,7 @@ Panel {
             id: keyCatcher
 
             anchors.fill: parent
-            blocked: languagePicker.popupOpen || variantPicker.popupOpen || shortcutPicker.popupOpen
+            blocked: languagePicker.popupOpen || variantPicker.popupOpen || shortcutPicker.popupOpen || aliasField.activeFocus
             onMoveRequested: function(dx, dy) {
                 if (deleteDialog.opened) {
                     if (dx !== 0 || dy !== 0)
@@ -596,6 +679,8 @@ Panel {
             onTextKey: function(text) {
                 if ((text === "d" || text === "D") && root.view === "main" && root.cursorIndex < root.configuredLayouts.length)
                     root.requestDelete(root.cursorIndex);
+                else if ((text === "e" || text === "E") && root.view === "main" && root.cursorIndex < root.configuredLayouts.length)
+                    root.startAlias(root.cursorIndex);
 
             }
 
@@ -621,13 +706,13 @@ Panel {
                         width: parent.width
                         foreground: root.foreground
                         fontFamily: root.fontFamily
-                        title: root.view === "main" ? root.activeDescription : (root.view === "shortcut" ? "Switch languages" : "Add a language")
-                        meta: root.view === "main" ? root.heroPhrase : (root.view === "shortcut" ? "XKB-supported shortcuts" : "Installed XKB layouts")
-                        detail: root.view === "main" ? root.layoutLabel : ""
+                        title: root.view === "main" ? root.activeDescription : (root.view === "shortcut" ? "Switch languages" : (root.view === "alias" ? "Edit bar alias" : "Add a language"))
+                        meta: root.view === "main" ? root.heroPhrase : (root.view === "shortcut" ? "XKB-supported shortcuts" : (root.view === "alias" && root.editingAliasLayout ? Model.descriptionFor(root.catalog, root.editingAliasLayout.layout, root.editingAliasLayout.variant) : "Installed XKB layouts"))
+                        detail: root.view === "main" ? root.layoutLabel : (root.view === "alias" ? root.aliasPreview : "")
 
                         iconComponent: Component {
                             Text {
-                                text: root.view === "main" ? "󰌌" : (root.view === "shortcut" ? "󰁔" : "󰐕")
+                                text: root.view === "main" ? "󰌌" : (root.view === "shortcut" ? "󰁔" : (root.view === "alias" ? "󰏫" : "󰐕"))
                                 color: root.foreground
                                 font.family: root.fontFamily
                                 font.pixelSize: Style.font.display
@@ -690,7 +775,9 @@ Panel {
                                     spacing: Style.space(12)
 
                                     BorderSurface {
-                                        width: Style.space(34)
+                                        id: aliasBadge
+
+                                        width: Math.max(Style.space(34), aliasBadgeText.implicitWidth + Style.spacing.sm * 2)
                                         height: Style.space(28)
                                         anchors.verticalCenter: parent.verticalCenter
                                         color: "transparent"
@@ -698,8 +785,10 @@ Panel {
                                         radius: Style.cornerRadius
 
                                         Text {
+                                            id: aliasBadgeText
+
                                             anchors.centerIn: parent
-                                            text: Model.labelFor(root.catalog, modelData.layout, modelData.variant)
+                                            text: Model.labelFor(root.catalog, modelData.layout, modelData.variant, modelData.alias)
                                             color: root.foreground
                                             font.family: root.fontFamily
                                             font.pixelSize: Style.font.caption
@@ -709,7 +798,7 @@ Panel {
                                     }
 
                                     Column {
-                                        width: Math.max(0, parent.width - Style.space(34) - deleteButton.width - parent.spacing * 2)
+                                        width: Math.max(0, parent.width - aliasBadge.width - editAliasButton.width - deleteButton.width - parent.spacing * 3)
                                         anchors.verticalCenter: parent.verticalCenter
                                         spacing: Style.space(1)
 
@@ -732,6 +821,18 @@ Panel {
                                             elide: Text.ElideRight
                                         }
 
+                                    }
+
+                                    PanelActionButton {
+                                        id: editAliasButton
+
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        iconText: "󰏫"
+                                        tooltipText: "Edit bar alias"
+                                        foreground: root.foreground
+                                        fontFamily: root.fontFamily
+                                        enabled: root.stateReady && !applyProc.pending && !stateProc.running
+                                        onClicked: root.startAlias(index)
                                     }
 
                                     PanelActionButton {
@@ -811,6 +912,121 @@ Panel {
                             onClicked: root.startAdd()
                         }
 
+                    }
+
+                    Column {
+                        visible: root.view === "alias"
+                        width: parent.width
+                        spacing: Style.space(12)
+
+                        Text {
+                            width: parent.width
+                            text: "Choose a compact label for this language in the bar. Clear it to return to the automatic “" + root.automaticAlias + "” label."
+                            color: root.dim
+                            font.family: root.fontFamily
+                            font.pixelSize: Style.font.body
+                            wrapMode: Text.WordWrap
+                        }
+
+                        PanelSectionHeader {
+                            text: "Bar alias"
+                            foreground: root.foreground
+                            fontFamily: root.fontFamily
+                        }
+
+                        TextField {
+                            id: aliasField
+
+                            width: parent.width
+                            placeholderText: root.automaticAlias
+                            foreground: root.foreground
+                            accent: Color.accent
+                            font.family: root.fontFamily
+                            font.pixelSize: Style.font.body
+                            onTextChanged: root.selectedAlias = text
+                            onAccepted: {
+                                if (root.aliasValidationError === "" && Model.normalizeAlias(root.selectedAlias) !== String(root.editingAliasLayout ? root.editingAliasLayout.alias || "" : ""))
+                                    root.saveAlias();
+                            }
+                            Keys.onPressed: function(event) {
+                                if (event.key === Qt.Key_Escape) {
+                                    root.openMain();
+                                    event.accepted = true;
+                                }
+                            }
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: Style.space(8)
+
+                            Text {
+                                width: Math.max(0, parent.width - aliasPreviewBadge.width - parent.spacing)
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: root.aliasValidationError !== "" ? root.aliasValidationError : "Preview · " + Model.aliasLength(Model.normalizeAlias(root.selectedAlias)) + " / 6"
+                                color: root.aliasValidationError !== "" ? root.urgent : root.dim
+                                font.family: root.fontFamily
+                                font.pixelSize: Style.font.caption
+                                wrapMode: Text.WordWrap
+                            }
+
+                            BorderSurface {
+                                id: aliasPreviewBadge
+
+                                width: Math.max(Style.space(34), aliasPreviewText.implicitWidth + Style.spacing.sm * 2)
+                                height: Style.space(28)
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: "transparent"
+                                borderSpec: Border.controlSpec("selected", root.foreground, Color.accent)
+                                radius: Style.cornerRadius
+
+                                Text {
+                                    id: aliasPreviewText
+
+                                    anchors.centerIn: parent
+                                    text: root.aliasPreview
+                                    color: root.foreground
+                                    font.family: root.fontFamily
+                                    font.pixelSize: Style.font.caption
+                                    font.bold: true
+                                }
+                            }
+                        }
+
+                        Row {
+                            anchors.right: parent.right
+                            spacing: Style.space(8)
+
+                            Button {
+                                text: "Cancel"
+                                focusable: true
+                                bordered: true
+                                foreground: root.foreground
+                                fontFamily: root.fontFamily
+                                onClicked: root.openMain()
+                            }
+
+                            Button {
+                                text: "Use default"
+                                focusable: true
+                                bordered: true
+                                enabled: root.editingAliasLayout && root.editingAliasLayout.alias !== "" && !applyProc.pending && !stateProc.running
+                                foreground: root.foreground
+                                fontFamily: root.fontFamily
+                                onClicked: root.useAutomaticAlias()
+                            }
+
+                            Button {
+                                text: applyProc.pending ? "Saving…" : "Save"
+                                focusable: true
+                                bordered: true
+                                enabled: root.stateReady && !applyProc.pending && !stateProc.running && root.aliasValidationError === "" && Model.normalizeAlias(root.selectedAlias) !== String(root.editingAliasLayout ? root.editingAliasLayout.alias || "" : "")
+                                foreground: root.foreground
+                                accent: Color.accent
+                                fontFamily: root.fontFamily
+                                onClicked: root.saveAlias()
+                            }
+                        }
                     }
 
                     Column {

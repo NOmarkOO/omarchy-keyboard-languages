@@ -16,6 +16,7 @@ usage() {
     '       nomarkoo-keyboard-layout set INDEX' \
     '       nomarkoo-keyboard-layout add LAYOUT [VARIANT]' \
     '       nomarkoo-keyboard-layout remove INDEX' \
+    '       nomarkoo-keyboard-layout alias INDEX [VALUE]' \
     '       nomarkoo-keyboard-layout shortcut XKB_GRP_OPTION' \
     '       nomarkoo-keyboard-layout snapshot-current' \
     '       nomarkoo-keyboard-layout current-index' \
@@ -39,7 +40,16 @@ validate_shape() {
     (.layouts | type == "array" and length > 0) and
     (all(.layouts[];
       (.layout | type == "string" and test("^[A-Za-z0-9_+-]+$")) and
-      (.variant | type == "string" and test("^[A-Za-z0-9_+-]*$")))) and
+      (.variant | type == "string" and test("^[A-Za-z0-9_+-]*$")) and
+      (
+        (has("alias") | not) or
+        (
+          ((.alias | type) == "string") and
+          ((.alias | length) <= 6) and
+          (.alias | explode | all(.[]; . >= 32 and (. < 127 or . > 159)))
+        )
+      )
+    )) and
     ([.layouts[] | [.layout, .variant]] | unique | length) == (.layouts | length) and
     (.switchOption | type == "string" and test("^grp:[A-Za-z0-9_+-]+$")) and
     (.nonGroupOptions | type == "array") and
@@ -314,6 +324,22 @@ commit_candidate() {
   status_json
 }
 
+commit_metadata_candidate() {
+  local payload=$1 temp_state
+  validate_shape "$payload" || die 'Invalid keyboard-layout state; nothing was changed.'
+  ensure_dirs
+  temp_state=$(mktemp --tmpdir="$state_dir" .nomarkoo-keyboard-state.XXXXXX)
+  jq . <<<"$payload" >"$temp_state"
+  chmod 0644 "$temp_state"
+  if [[ -f $state_file ]] \
+    && [[ "$(jq -S -c . "$temp_state")" == "$(jq -S -c . "$state_file")" ]]; then
+    rm -f -- "$temp_state"
+  else
+    mv -f -- "$temp_state" "$state_file"
+  fi
+  jq -c . "$state_file"
+}
+
 ensure_state() {
   ensure_dirs
   [[ -f $state_file ]] && return 0
@@ -403,6 +429,27 @@ case "$action" in
     if (( index == 0 )); then safe_old_index=1; else safe_old_index=0; fi
     payload=$(jq -c --argjson index "$index" '.layouts |= del(.[$index])' "$state_file")
     commit_candidate "$payload" "$next" "$safe_old_index" "$current"
+    ;;
+  alias)
+    [[ ${2:-} =~ ^[0-9]+$ ]] || usage
+    index=$2
+    value=${3:-}
+    jq -en --arg value "$value" '
+      ($value | explode | all(.[]; . >= 32 and (. < 127 or . > 159))) and
+      ($value | gsub("^\\s+|\\s+$"; "") | length <= 6)
+    ' >/dev/null || die 'Use up to 6 printable characters for the bar alias; nothing was changed.'
+    alias=$(jq -nr --arg value "$value" '$value | gsub("^\\s+|\\s+$"; "")')
+    ensure_state
+    exec 9>"$lock_file"
+    flock -x 9
+    count=$(jq '.layouts | length' "$state_file")
+    (( index < count )) || die 'That keyboard language is no longer available.'
+    payload=$(jq -c --argjson index "$index" --arg alias "$alias" '
+      if $alias == "" then del(.layouts[$index].alias)
+      else .layouts[$index].alias = $alias
+      end
+    ' "$state_file")
+    commit_metadata_candidate "$payload"
     ;;
   shortcut)
     shortcut=${2:-}

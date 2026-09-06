@@ -51,7 +51,7 @@ assert_installed() {
     ([.bar.layout[]?[]? | select(.id == "omarchy.keyboard-layout")] | length) == 0
   ' "$XDG_CONFIG_HOME/omarchy/shell.json" >/dev/null
   jq -e '
-    .layouts == [{layout:"us",variant:""},{layout:"ru",variant:"phonetic"}] and
+    [.layouts[] | {layout, variant}] == [{layout:"us",variant:""},{layout:"ru",variant:"phonetic"}] and
     .switchOption == "grp:ctrl_shift_toggle" and
     .nonGroupOptions == ["compose:caps"]
   ' "$XDG_STATE_HOME/omarchy/settings/nomarkoo-keyboard-layout.json" >/dev/null
@@ -99,8 +99,11 @@ first_head=$(git -C "$XDG_CONFIG_HOME/omarchy/plugins/nomarkoo.keyboard-layout" 
 NOMARKOO_TEST_HYPR_MODE=live run_installer "$fixture_commit_one" >/dev/null
 assert_installed "$fixture_commit_one"
 [[ $first_head == "$(git -C "$XDG_CONFIG_HOME/omarchy/plugins/nomarkoo.keyboard-layout" rev-parse HEAD)" ]]
+"$XDG_CONFIG_HOME/omarchy/plugins/nomarkoo.keyboard-layout/bin/nomarkoo-keyboard-layout" alias 0 Work >/dev/null
 NOMARKOO_TEST_HYPR_MODE=live run_installer "$fixture_commit_two" >/dev/null
 assert_installed "$fixture_commit_two"
+jq -e '.layouts[0].alias == "Work" and (.layouts[1] | has("alias") | not)' \
+  "$XDG_STATE_HOME/omarchy/settings/nomarkoo-keyboard-layout.json" >/dev/null
 
 # The normal uninstaller restores the stock widget and keeps keyboard state.
 installed_plugin=$XDG_CONFIG_HOME/omarchy/plugins/nomarkoo.keyboard-layout

@@ -11,6 +11,15 @@ assert.equal(catalog.shortcuts.some((item) => item.value === "grp:switch"), fals
 assert.equal(Model.labelFor(catalog, "us", ""), "EN")
 assert.equal(Model.labelFor(catalog, "ru", ""), "RU")
 assert.equal(Model.labelFor(catalog, "us", "").length, 2)
+assert.equal(Model.labelFor(catalog, "us", "", " Work "), "Work")
+assert.equal(Model.labelFor(catalog, "us", "", "🇺🇸"), "🇺🇸")
+assert.equal(Model.labelFor(catalog, "us", "", ""), "EN")
+assert.equal(Model.labelFor(catalog, "us", "", "toolong"), "EN")
+assert.equal(Model.normalizeAlias("  pt-BR  "), "pt-BR")
+assert.equal(Model.aliasError("pt-BR"), "")
+assert.equal(Model.aliasError("🇺🇸ABC"), "")
+assert.match(Model.aliasError("1234567"), /6 characters/)
+assert.match(Model.aliasError("bad\talias"), /control/)
 assert.match(Model.descriptionFor(catalog, "ru", ""), /Russian/)
 
 const configured = [
@@ -22,21 +31,6 @@ assert.equal(Model.duplicate(configured, "ru", "phonetic"), false)
 assert.ok(Model.baseLayoutOptions(catalog, configured).some((item) => item.value === "ru"))
 assert.ok(Model.variantOptions(catalog, "ru", configured).some((item) => item.value !== ""))
 
-// The default "br" layout is XKB's ABNT2 keymap, but its own description
-// ("Portuguese (Brazil)") never says so. Surface the alias in the base-layout
-// entry's description so the searchable picker (label/description substring
-// match) finds it when someone searches "abnt2".
-assert.equal(Model.aliasFor("br"), "ABNT2")
-assert.equal(Model.aliasFor("us"), "")
-// Guards against resolving inherited Object.prototype members for an
-// unexpected layout code (e.g. "toString", "constructor").
-assert.equal(Model.aliasFor("toString"), "")
-assert.equal(Model.aliasFor("constructor"), "")
-assert.ok(
-  Model.baseLayoutOptions(catalog, configured).some(
-    (item) => item.value === "br" && item.description.includes("ABNT2")
-  )
-)
 assert.equal(Model.canDelete(configured, 1).ok, true)
 assert.equal(Model.canDelete(configured, 0).ok, false)
 assert.match(Model.canDelete(configured, 0).reason, /Latin layout first/)
@@ -88,5 +82,14 @@ const state = JSON.parse(fs.readFileSync(require.resolve("./fixtures/state.json"
 assert.deepEqual(Model.normalizeLayouts(state.layouts).map(({ layout, variant }) => ({ layout, variant })), [
   { layout: "us", variant: "" },
   { layout: "ru", variant: "" }
+])
+assert.deepEqual(Model.normalizeLayouts([
+  { layout: "us", variant: "", alias: "Work", latin: true },
+  { layout: "us", variant: "dvorak", alias: "DV", latin: true },
+  { layout: "ru", variant: "", alias: "1234567", latin: false }
+]).map(({ layout, variant, alias }) => ({ layout, variant, alias })), [
+  { layout: "us", variant: "", alias: "Work" },
+  { layout: "us", variant: "dvorak", alias: "DV" },
+  { layout: "ru", variant: "", alias: "" }
 ])
 console.log("keyboard-layout model tests passed")
