@@ -2,7 +2,7 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-06
 
 ### Added
 
@@ -41,6 +41,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - One-command installer with live-state import and copied-plugin migration.
 - Recoverable uninstaller, automated integration tests, CI, and themed documentation.
 
+[1.1.0]: https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/tag/v1.1.0
 [1.0.2]: https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/tag/v1.0.2
 [1.0.1]: https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/tag/v1.0.1
 [1.0.0]: https://github.com/NOmarkOO/omarchy-keyboard-languages/releases/tag/v1.0.0

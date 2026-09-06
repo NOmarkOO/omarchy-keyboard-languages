@@ -28,7 +28,7 @@ qmllint -I "${OMARCHY_PATH:-/usr/share/omarchy}/shell" \
   "$repo_root/KeyboardSearchableDropdown.qml"
 
 rg -q 'defaultSection.*right' "$repo_root/manifest.json"
-[[ $(jq -r '.version' "$repo_root/manifest.json") == 1.0.2 ]]
+[[ $(jq -r '.version' "$repo_root/manifest.json") == 1.1.0 ]]
 rg -q 'Qt\.resolvedUrl\("bin/nomarkoo-keyboard-layout"\)' "$repo_root/KeyboardLayout.qml"
 rg -q 'target: "nomarkoo.keyboard-layout.demo"' "$repo_root/KeyboardLayout.qml"
 if rg -q 'command: \["nomarkoo-keyboard-layout"|\.local/bin/nomarkoo-keyboard-layout' \
