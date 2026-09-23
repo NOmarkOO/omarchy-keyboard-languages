@@ -45,6 +45,17 @@ Panel {
     property string statusText: ""
     property bool statusError: false
     property int phraseIndex: 0
+    property bool recentSwitching: false
+    property bool prefsLoaded: false
+    property bool prefsDirty: false
+    property var recentState: Model.recentInitial()
+    property int queuedSwitch: -1
+    readonly property int cycleWindowMs: 700
+    readonly property string layoutSignature: configuredLayouts.map(function(item) {
+        return item.layout + ":" + item.variant;
+    }).join("|")
+    readonly property string prefsReadScript: "cat \"$HOME/.local/state/omarchy/settings/nomarkoo-keyboard-layout-ui.json\" 2>/dev/null || true"
+    readonly property string prefsWriteScript: "f=\"$HOME/.local/state/omarchy/settings/nomarkoo-keyboard-layout-ui.json\"; mkdir -p \"${f%/*}\" && printf '%s\\n' \"$1\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\""
     readonly property color foreground: bar ? bar.foreground : Color.foreground
     readonly property color urgent: bar ? bar.urgent : Color.urgent
     readonly property color dim: Qt.darker(foreground, 1.45)
@@ -159,7 +170,7 @@ Panel {
         resetAliasEditor();
         selectedShortcut = switchOption;
         statusText = "";
-        cursorIndex = Math.max(0, Math.min(cursorIndex, configuredLayouts.length + 1));
+        cursorIndex = Math.max(0, Math.min(cursorIndex, configuredLayouts.length + 2));
         Qt.callLater(function() {
             keyCatcher.forceActiveFocus();
         });
@@ -216,7 +227,7 @@ Panel {
         hero.metaOpacity = 1;
     }
 
-    function runAction(actionArguments, message, loadingMessage, metadataOnly) {
+    function runAction(actionArguments, message, loadingMessage, metadataOnly, keepView) {
         if (applyProc.pending)
             return ;
         if (stateProc.running || !stateReady) {
@@ -228,23 +239,72 @@ Panel {
         statusText = loadingMessage || "Applying keyboard settings…";
         applyProc.successMessage = message;
         applyProc.metadataOnly = metadataOnly === true;
+        applyProc.keepView = keepView === true;
         applyProc.command = [root.helperCommand].concat(actionArguments);
         applyProc.pending = true;
         applyTimeout.restart();
         applyProc.running = true;
     }
 
-    function switchLayout(index) {
+    function switchLayout(index, keepView) {
         if (!stateReady || index < 0 || index >= configuredLayouts.length || !keyboardName || !bar)
             return ;
 
-        runAction(["set", String(index)], "Keyboard language switched.");
+        runAction(["set", String(index)], "Keyboard language switched.", undefined, false, keepView === true);
     }
 
+    // Left-click and the "next" IPC call. Neither resets an open editor.
     function cycleLayout() {
         if (configuredLayouts.length < 2)
             return ;
-        switchLayout((activeLayoutIndex + 1) % configuredLayouts.length);
+        if (recentSwitching) {
+            stepRecent();
+            return ;
+        }
+        switchLayout((activeLayoutIndex + 1) % configuredLayouts.length, true);
+    }
+
+    function noteActive(index) {
+        recentState = Model.recentNote(recentState, index, configuredLayouts.length);
+    }
+
+    function stepRecent() {
+        var step = Model.recentPress(recentState, activeLayoutIndex, configuredLayouts.length);
+        recentState = step.state;
+        cycleTimer.restart();
+        requestSwitch(step.target);
+    }
+
+    function finishCycle() {
+        cycleTimer.stop();
+        recentState = Model.recentCommit(recentState);
+    }
+
+    // Presses can arrive faster than the helper answers; keep only the latest.
+    function requestSwitch(index) {
+        if (applyProc.pending) {
+            queuedSwitch = index;
+            return ;
+        }
+        switchLayout(index, true);
+    }
+
+    function setRecentSwitching(value) {
+        finishCycle();
+        recentSwitching = value === true;
+        savePrefs();
+    }
+
+    function savePrefs() {
+        if (prefsWriteProc.running) {
+            prefsDirty = true;
+            return ;
+        }
+        prefsDirty = false;
+        prefsWriteProc.command = ["sh", "-c", prefsWriteScript, "sh", JSON.stringify({
+            "recentSwitching": recentSwitching
+        })];
+        prefsWriteProc.running = true;
     }
 
     function requestDelete(index) {
@@ -313,23 +373,41 @@ Panel {
             switchLayout(cursorIndex);
         else if (cursorIndex === configuredLayouts.length)
             startShortcut();
-        else
+        else if (cursorIndex === configuredLayouts.length + 1)
             startAdd();
+        else
+            setRecentSwitching(!recentSwitching);
     }
 
     function moveCursor(dy) {
         if (view !== "main" || dy === 0)
             return ;
 
-        cursorIndex = Math.max(0, Math.min(configuredLayouts.length + 1, cursorIndex + dy));
+        cursorIndex = Math.max(0, Math.min(configuredLayouts.length + 2, cursorIndex + dy));
     }
 
     moduleName: "nomarkoo.keyboard-layout"
     ipcTarget: "nomarkoo.keyboard-layout"
     Component.onCompleted: {
         catalogProc.running = true;
+        prefsReadProc.running = true;
         refreshState();
         refresh();
+    }
+    onActiveLayoutIndexChanged: noteActive(activeLayoutIndex)
+    onLayoutSignatureChanged: {
+        cycleTimer.stop();
+        recentState = Model.recentInitial();
+        noteActive(activeLayoutIndex);
+    }
+
+    // Bind a key to this from Hyprland: omarchy-shell nomarkoo.keyboard-layout.switch next
+    IpcHandler {
+        target: "nomarkoo.keyboard-layout.switch"
+
+        function next() {
+            root.cycleLayout();
+        }
     }
 
     // Read-only maintainer surface used by demo/capture.sh. These methods only
@@ -468,23 +546,36 @@ Panel {
         property string successMessage: ""
         property bool pending: false
         property bool metadataOnly: false
+        property bool keepView: false
 
         onExited: function(exitCode) {
             if (!pending)
                 return ;
             var wasMetadataOnly = metadataOnly;
+            var wasKeepView = keepView;
             pending = false;
             metadataOnly = false;
+            keepView = false;
             applyTimeout.stop();
             var accepted = exitCode === 0 && (wasMetadataOnly ? root.acceptMetadataState(applyStdout.text) : root.acceptState(applyStdout.text));
             if (accepted) {
                 root.statusError = false;
-                root.openMain();
+                if (wasKeepView)
+                    root.statusText = "";
+                else
+                    root.openMain();
                 if (!wasMetadataOnly)
                     refreshTimer.restart();
             } else {
                 root.statusError = true;
                 root.statusText = String(applyStderr.text || "Keyboard settings could not be applied. Your previous settings are still active.").trim();
+            }
+            if (root.queuedSwitch >= 0) {
+                var queued = root.queuedSwitch;
+                root.queuedSwitch = -1;
+                Qt.callLater(function() {
+                    root.switchLayout(queued, true);
+                });
             }
         }
 
@@ -541,10 +632,47 @@ Panel {
                 return ;
             applyProc.pending = false;
             applyProc.metadataOnly = false;
+            applyProc.keepView = false;
+            root.queuedSwitch = -1;
             if (applyProc.running)
                 applyProc.running = false;
             root.statusError = true;
             root.statusText = "Keyboard helper did not respond. Restart the Omarchy shell and try again.";
+        }
+    }
+
+    Timer {
+        id: cycleTimer
+
+        interval: root.cycleWindowMs
+        onTriggered: root.finishCycle()
+    }
+
+    Process {
+        id: prefsReadProc
+
+        command: ["sh", "-c", root.prefsReadScript]
+
+        stdout: StdioCollector {
+            waitForEnd: true
+            onStreamFinished: {
+                try {
+                    root.recentSwitching = JSON.parse(String(text || "").trim() || "{}").recentSwitching === true;
+                } catch (error) {
+                    root.recentSwitching = false;
+                }
+                root.prefsLoaded = true;
+            }
+        }
+
+    }
+
+    Process {
+        id: prefsWriteProc
+
+        onExited: {
+            if (root.prefsDirty)
+                root.savePrefs();
         }
     }
 
@@ -910,6 +1038,34 @@ Panel {
 
                             }
                             onClicked: root.startAdd()
+                        }
+
+                        Button {
+                            width: parent.width
+                            text: "Recent-first switching"
+                            iconText: root.recentSwitching ? "\uDB80\uDD32" : "\uDB80\uDD31"
+                            leftAlign: true
+                            focusable: true
+                            enabled: root.prefsLoaded
+                            foreground: root.foreground
+                            fontFamily: root.fontFamily
+                            hasCursor: root.cursorIndex === root.configuredLayouts.length + 2
+                            onHovered: function(hovered) {
+                                if (hovered)
+                                    root.cursorIndex = root.configuredLayouts.length + 2;
+
+                            }
+                            onClicked: root.setRecentSwitching(!root.recentSwitching)
+                        }
+
+                        Text {
+                            width: parent.width
+                            leftPadding: Style.spacing.controlPaddingX
+                            text: root.recentSwitching ? "On: the last used language comes first; tap again quickly to go deeper" : "Off: cycles through languages in list order"
+                            color: root.dim
+                            font.family: root.fontFamily
+                            font.pixelSize: Style.font.caption
+                            wrapMode: Text.WordWrap
                         }
 
                     }

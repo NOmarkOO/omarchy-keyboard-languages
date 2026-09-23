@@ -11,6 +11,7 @@ readonly STATE_FILE="$STATE_ROOT/omarchy/settings/nomarkoo-keyboard-layout.json"
 readonly TOGGLE_FILE="$STATE_ROOT/omarchy/toggles/hypr/nomarkoo-keyboard-layout.lua"
 readonly LOCK_FILE="$STATE_ROOT/omarchy/settings/nomarkoo-keyboard-layout.lock"
 readonly INSTALL_RECORD="$STATE_ROOT/omarchy/settings/nomarkoo-keyboard-layout-install.json"
+readonly UI_PREFS_FILE="$STATE_ROOT/omarchy/settings/nomarkoo-keyboard-layout-ui.json"
 
 purge=false
 case "${1:-}" in
@@ -62,7 +63,7 @@ if [[ -e $TARGET ]]; then
 fi
 
 if [[ $purge == true ]]; then
-  rm -f -- "$STATE_FILE" "$TOGGLE_FILE" "$LOCK_FILE" "$INSTALL_RECORD"
+  rm -f -- "$STATE_FILE" "$TOGGLE_FILE" "$LOCK_FILE" "$INSTALL_RECORD" "$UI_PREFS_FILE"
 fi
 
 if [[ ${NOMARKOO_SKIP_SHELL_RESTART:-0} != 1 ]]; then

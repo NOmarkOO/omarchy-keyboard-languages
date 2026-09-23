@@ -251,6 +251,59 @@ function selectKeyboard(typed, namedByEvent) {
     }, keyboards[0])
 }
 
+// Recent-first ("macOS-style") switching. A history is the list of layout
+// indexes ordered from most to least recently used. Presses that arrive close
+// together form one burst: the first press snapshots the history and steps to
+// the previous layout, every further press goes one layout deeper, and the
+// burst only reorders the history once it is committed.
+function recentInitial() {
+  return { order: [], base: null, position: 0 }
+}
+
+function recentNormalize(order, count) {
+  var seen = {}
+  var result = []
+  ;(Array.isArray(order) ? order : []).forEach(function(value) {
+    if (Number.isInteger(value) && value >= 0 && value < count && !seen[value]) {
+      seen[value] = true
+      result.push(value)
+    }
+  })
+  for (var index = 0; index < count; index++) {
+    if (!seen[index]) result.push(index)
+  }
+  return result
+}
+
+function recentMoveToFront(order, index) {
+  return [index].concat(order.filter(function(value) { return value !== index }))
+}
+
+// Records a layout change that happened outside a burst (click on a row, an XKB
+// shortcut, another tool). Changes reported while a burst runs are its own hops.
+function recentNote(state, active, count) {
+  if (state.base || !Number.isInteger(active) || active < 0 || active >= count) return state
+  return { order: recentMoveToFront(recentNormalize(state.order, count), active), base: null, position: 0 }
+}
+
+function recentPress(state, active, count) {
+  var order = recentNormalize(state.order, count)
+  var base = state.base
+  var position = state.position
+  if (!base || base.length !== count) {
+    order = recentMoveToFront(order, Number.isInteger(active) && active >= 0 && active < count ? active : order[0])
+    base = order
+    position = 0
+  }
+  position = (position + 1) % base.length
+  return { state: { order: order, base: base, position: position }, target: base[position] }
+}
+
+function recentCommit(state) {
+  if (!state.base) return state
+  return { order: recentMoveToFront(state.base, state.base[state.position]), base: null, position: 0 }
+}
+
 if (typeof module !== "undefined") module.exports = {
   aliasLength: aliasLength,
   aliasError: aliasError,
@@ -267,6 +320,12 @@ if (typeof module !== "undefined") module.exports = {
   normalizeLayouts: normalizeLayouts,
   parseCatalog: parseCatalog,
   popupPlacement: popupPlacement,
+  recentCommit: recentCommit,
+  recentInitial: recentInitial,
+  recentMoveToFront: recentMoveToFront,
+  recentNormalize: recentNormalize,
+  recentNote: recentNote,
+  recentPress: recentPress,
   selectKeyboard: selectKeyboard,
   variantOptions: variantOptions
 }

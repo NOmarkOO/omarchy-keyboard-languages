@@ -72,6 +72,18 @@ It remains a third-party plugin because it is distributed outside the Omarchy re
 | Flexoki Light · shortcut | Gruvbox · remove confirmation |
 | ![Shortcut picker in Flexoki Light](docs/screenshots/flexoki-light-shortcut.png) | ![Removal confirmation in Gruvbox](docs/screenshots/gruvbox-remove-confirmation.png) |
 
+## Recent-first switching
+
+Open the manager (right-click the bar label) and toggle **Recent-first switching**. Off keeps the default behavior: languages cycle in list order. On, a switch goes to the language you used before the current one, so two languages toggle back and forth, and presses that follow each other within about 0.7 seconds walk deeper into the usage history, like the input-source switcher in macOS.
+
+The bar label's left-click follows the toggle. To drive it from the keyboard, bind a key to the shell call in `~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("CTRL + space", "Switch keyboard language", "omarchy-shell nomarkoo.keyboard-layout.switch next")
+```
+
+XKB cannot do this itself, so pick a different group shortcut under **Switch shortcut** (for example Alt+Shift). Otherwise both the XKB shortcut and the binding fire and the language switches twice. The toggle lives in `~/.local/state/omarchy/settings/nomarkoo-keyboard-layout-ui.json`; the XKB configuration is not modified.
+
 ## Requirements
 
 - Omarchy Quattro 4.0 or newer.
