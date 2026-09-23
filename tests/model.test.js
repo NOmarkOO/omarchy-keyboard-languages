@@ -92,4 +92,57 @@ assert.deepEqual(Model.normalizeLayouts([
   { layout: "us", variant: "dvorak", alias: "DV" },
   { layout: "ru", variant: "", alias: "" }
 ])
+// Recent-first ("macOS-style") switching.
+assert.deepEqual(Model.recentNormalize([2, 2, 9, -1, 0], 3), [2, 0, 1])
+assert.deepEqual(Model.recentNormalize(undefined, 3), [0, 1, 2])
+assert.deepEqual(Model.recentMoveToFront([0, 1, 2], 2), [2, 0, 1])
+
+let recent = Model.recentNote(Model.recentInitial(), 0, 3)
+assert.deepEqual(recent.order, [0, 1, 2])
+
+// A single press goes to the previously used layout; two layouts toggle back and forth.
+let press = Model.recentPress(recent, 0, 3)
+assert.equal(press.target, 1)
+recent = Model.recentCommit(press.state)
+assert.deepEqual(recent.order, [1, 0, 2])
+press = Model.recentPress(recent, 1, 3)
+assert.equal(press.target, 0)
+recent = Model.recentCommit(press.state)
+assert.deepEqual(recent.order, [0, 1, 2])
+
+// Presses inside one burst walk deeper into the history and wrap around,
+// and only the committed burst reorders it.
+press = Model.recentPress(recent, 0, 3)
+assert.equal(press.target, 1)
+press = Model.recentPress(press.state, 1, 3)
+assert.equal(press.target, 2)
+assert.deepEqual(press.state.order, [0, 1, 2])
+press = Model.recentPress(press.state, 2, 3)
+assert.equal(press.target, 0)
+press = Model.recentPress(press.state, 0, 3)
+assert.equal(press.target, 1)
+recent = Model.recentCommit(press.state)
+assert.deepEqual(recent.order, [1, 0, 2])
+assert.equal(recent.base, null)
+
+// Layout changes reported during a burst are its own hops and never rewrite history.
+press = Model.recentPress(recent, 1, 3)
+assert.equal(press.target, 0)
+assert.equal(Model.recentNote(press.state, 0, 3), press.state)
+recent = Model.recentCommit(press.state)
+assert.deepEqual(recent.order, [0, 1, 2])
+
+// A change made elsewhere (a row click, an XKB shortcut) becomes the most recent layout.
+recent = Model.recentNote(recent, 2, 3)
+assert.deepEqual(recent.order, [2, 0, 1])
+assert.equal(Model.recentPress(recent, 2, 3).target, 0)
+assert.equal(Model.recentNote(recent, 7, 3), recent)
+
+// A burst cannot survive the layout count changing under it.
+press = Model.recentPress(Model.recentPress(recent, 2, 3).state, 0, 3)
+assert.equal(press.target, 1)
+press = Model.recentPress(press.state, 1, 2)
+assert.equal(press.state.base.length, 2)
+assert.ok([0, 1].includes(press.target))
+assert.equal(Model.recentCommit(Model.recentInitial()).base, null)
 console.log("keyboard-layout model tests passed")

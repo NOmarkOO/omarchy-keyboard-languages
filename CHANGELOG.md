@@ -2,6 +2,16 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Optional recent-first ("macOS-style") switching, toggled from the language manager. When on, a switch goes to the previously used language and quick repeated presses walk deeper into the usage history; when off, languages cycle in list order as before. It applies to the bar label's left-click and to a new `nomarkoo.keyboard-layout.switch next` shell call that a Hyprland binding can trigger. The setting is stored in its own `nomarkoo-keyboard-layout-ui.json` state file and never touches the XKB configuration.
+
+### Fixed
+
+- Switching languages from the bar label or the new shell call no longer resets an open alias, shortcut, or add-language editor.
+
 ## [1.1.0] - 2026-09-06
 
 ### Added
