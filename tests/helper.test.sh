@@ -215,6 +215,35 @@ if rg -q '(^| )reload($| )|configerrors' "$NOMARKOO_TEST_HYPR_LOG"; then
   exit 1
 fi
 
+# Regression: an option defined only in an extra rules file (as Omarchy ships
+# omarchy:shift_caps_compose in /etc/xkb/rules/evdev) has no registry entry in
+# xkbcli list, but libxkbcommon resolves it, so it must be accepted. A truly
+# unknown option must still be rejected.
+xkb_extra=$test_root/xkb-extra
+mkdir -p "$xkb_extra/rules" "$xkb_extra/symbols"
+printf '%s\n' '! include %S/evdev' '' '! option = symbols' \
+  '  nomarkoo:rules_only = +nomarkoo(rules_only)' >"$xkb_extra/rules/evdev"
+printf '%s\n' 'partial modifier_keys' 'xkb_symbols "rules_only" {' \
+  '  key <CAPS> { [ Caps_Lock ] };' '};' >"$xkb_extra/symbols/nomarkoo"
+export XDG_STATE_HOME=$test_root/rules-only-state
+rules_only_payload='{"version":1,"layouts":[{"layout":"us","variant":""}],"switchOption":"grp:alt_shift_toggle","nonGroupOptions":["nomarkoo:rules_only"]}'
+XKB_CONFIG_EXTRA_PATH=$xkb_extra NOMARKOO_TEST_HYPR_MODE=offline \
+  "$helper" install-json "$rules_only_payload" 0 >/dev/null
+unknown_payload='{"version":1,"layouts":[{"layout":"us","variant":""}],"switchOption":"grp:alt_shift_toggle","nonGroupOptions":["nomarkoo:not_real"]}'
+# A quieter inherited XKB_LOG_LEVEL must not hide the unknown option.
+for log_level in "" critical; do
+  if unknown_error=$(XKB_LOG_LEVEL=$log_level XKB_CONFIG_EXTRA_PATH=$xkb_extra \
+    NOMARKOO_TEST_HYPR_MODE=offline \
+    "$helper" install-json "$unknown_payload" 0 2>&1 >/dev/null); then
+    printf 'An unknown XKB option unexpectedly succeeded.\n' >&2
+    exit 1
+  fi
+  [[ $unknown_error == *"XKB does not provide option 'nomarkoo:not_real'"* ]]
+  jq -e '.nonGroupOptions == ["nomarkoo:rules_only"]' \
+    "$XDG_STATE_HOME/omarchy/settings/nomarkoo-keyboard-layout.json" >/dev/null
+  rg -q -F 'nomarkoo:rules_only' "$XDG_STATE_HOME/omarchy/toggles/hypr/nomarkoo-keyboard-layout.lua"
+done
+
 
 
 printf 'helper integration tests passed.\n'

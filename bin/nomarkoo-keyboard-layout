@@ -125,6 +125,17 @@ is_latin() {
   [[ ${#letters} -eq 26 ]]
 }
 
+# Options defined only in rules files (e.g. Omarchy's /etc/xkb/rules/evdev) are
+# missing from the xkbcli registry; libxkbcommon still resolves them.
+xkb_rules_know_option() {
+  local payload=$1 option=$2 errors
+  errors=$(XKB_LOG_LEVEL=error xkbcli compile-keymap \
+    --layout "$(layout_csv "$payload")" \
+    --variant "$(variant_csv "$payload")" \
+    --options "$option" 2>&1 >/dev/null) || return 1
+  ! grep -Fq 'Unrecognized RMLVO option' <<<"$errors"
+}
+
 validate_candidate() {
   local payload=$1 first_layout first_variant shortcut catalog option
   validate_shape "$payload" || die 'Invalid keyboard-layout state; nothing was changed.'
@@ -136,6 +147,7 @@ validate_candidate() {
   catalog=$(xkbcli list --load-exotic 2>/dev/null) || die 'The installed XKB catalog could not be read; nothing was changed.'
   while IFS= read -r option; do
     grep -Fqx "  - name: '$option'" <<<"$catalog" \
+      || xkb_rules_know_option "$payload" "$option" \
       || die "XKB does not provide option '$option'; nothing was changed."
   done < <(jq -r '.nonGroupOptions[], .switchOption' <<<"$payload")
   compile_layout "$payload" || die 'XKB rejected that layout, variant, or shortcut; nothing was changed.'

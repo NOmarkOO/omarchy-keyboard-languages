@@ -2,6 +2,12 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases use [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- XKB options defined only in rules files, such as Omarchy's `omarchy:shift_caps_compose` from `/etc/xkb/rules/evdev`, no longer block every keyboard change with "XKB does not provide option". They are missing from the `xkbcli list` registry but libxkbcommon resolves them, so the helper now accepts an option when compiling it reports no unrecognized option.
+
 ## [1.1.0] - 2026-09-06
 
 ### Added
